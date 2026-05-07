@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/session"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
 )
 
 // VirtualConn fulfills net.Conn by reading from session.RxChan and writing to

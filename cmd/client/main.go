@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/carrier"
-	"github.com/kianmhz/GooseRelayVPN/internal/config"
-	"github.com/kianmhz/GooseRelayVPN/internal/session"
-	"github.com/kianmhz/GooseRelayVPN/internal/socks"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/carrier"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/config"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/socks"
 )
 
 var version = "dev"
@@ -170,6 +170,7 @@ func main() {
 		CoalesceStep:       time.Duration(cfg.CoalesceStepMs) * time.Millisecond,
 		CoalesceMax:        time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
 		IdleSlotsPerBucket: cfg.IdleSlotsPerBucket,
+		MaxGlobalWorkers:   cfg.MaxGlobalWorkers,
 		Fronting: carrier.FrontingConfig{
 			GoogleIP: cfg.GoogleIP,
 			SNIHosts: cfg.SNIHosts,

@@ -1,6 +1,6 @@
 # GooseRelayVPN
 
-[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/kianmhz/GooseRelayVPN)
+[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/nullroute-lab/GooseRelayVPN)
 
 **[🇮🇷 راهنمای فارسی (Persian)](README_FA.md)**
 
@@ -76,7 +76,7 @@ You need two separate programs:
 
 **Option A — Download a pre-built release (recommended):**
 
-1. Go to the [Releases page](https://github.com/kianmhz/GooseRelayVPN/releases).
+1. Go to the [Releases page](https://github.com/nullroute-lab/GooseRelayVPN/releases).
 2. Download the right archive for your OS:
    - Windows: `GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
    - macOS (Intel): `GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
@@ -86,7 +86,7 @@ You need two separate programs:
 3. For the **server**, SSH into your VPS and download the binary for your server OS:
    - **Linux (most common):**
      ```bash
-     wget https://github.com/kianmhz/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
+     wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
      tar -xzf GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
      ```
    - **Windows Server:** download `GooseRelayVPN-server-vX.Y.Z-windows-amd64.zip` from the Releases page and extract it to a folder such as `C:\goose-relay\`. See Step 8 (Windows) below for service setup.
@@ -104,7 +104,7 @@ You need two separate programs:
 **Option B — Build from source (Go 1.22+) — not recommended, may be unstable:**
 
 ```bash
-git clone https://github.com/kianmhz/GooseRelayVPN.git
+git clone https://github.com/nullroute-lab/GooseRelayVPN.git
 cd GooseRelayVPN
 go build -o goose-client ./cmd/client
 go build -o goose-server ./cmd/server
@@ -115,7 +115,7 @@ go build -o goose-server ./cmd/server
 If you prefer containers on your VPS, you can run `goose-server` directly from GHCR:
 
 ```bash
-docker pull ghcr.io/kianmhz/gooserelayvpn-server:latest
+docker pull ghcr.io/nullroute-lab/gooserelayvpn-server:latest
 ```
 
 ### Step 3: Generate a secret key
@@ -222,7 +222,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8443:8443 \
   -v $(pwd)/server_config.json:/app/server_config.json:ro \
-  ghcr.io/kianmhz/gooserelayvpn-server:latest
+  ghcr.io/nullroute-lab/gooserelayvpn-server:latest
 ```
 
 **Docker Compose (recommended for container setup):**
@@ -233,10 +233,10 @@ nano server_config.json
 docker compose up -d
 ```
 
-The repo includes [`docker-compose.yml`](docker-compose.yml). By default it uses `ghcr.io/kianmhz/gooserelayvpn-server:latest`, and you can override it with:
+The repo includes [`docker-compose.yml`](docker-compose.yml). By default it uses `ghcr.io/nullroute-lab/gooserelayvpn-server:latest`, and you can override it with:
 
 ```bash
-GOOSE_SERVER_IMAGE=ghcr.io/kianmhz/gooserelayvpn-server:vX.Y.Z docker compose up -d
+GOOSE_SERVER_IMAGE=ghcr.io/nullroute-lab/gooserelayvpn-server:vX.Y.Z docker compose up -d
 ```
 
 Verify from your own computer:

@@ -1,6 +1,6 @@
 # GooseRelayVPN
 
-[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/kianmhz/GooseRelayVPN)
+[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/nullroute-lab/GooseRelayVPN)
 
 **[English README](README.md)**
 
@@ -76,7 +76,7 @@ Browser/App
 
 **گزینه A — دانلود نسخه آماده (پیشنهادی):**
 
-1. به [صفحه Releases](https://github.com/kianmhz/GooseRelayVPN/releases) بروید.
+1. به [صفحه Releases](https://github.com/nullroute-lab/GooseRelayVPN/releases) بروید.
 2. آرشیو مناسب سیستم‌عامل خود را دانلود کنید:
    - Windows: `GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
    - macOS (Intel): `GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
@@ -86,7 +86,7 @@ Browser/App
 3. برای **سرور**، باینری مناسب سیستم‌عامل VPS خود را دانلود کنید:
    - **لینوکس (رایج‌ترین):**
      ```bash
-     wget https://github.com/kianmhz/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
+     wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
      tar -xzf GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
      ```
    - **ویندوز سرور:** فایل `GooseRelayVPN-server-vX.Y.Z-windows-amd64.zip` را از صفحه Releases دانلود کنید و آن را در پوشه‌ای مثل `C:\goose-relay\` اکسترکت کنید. برای راه‌اندازی سرویس، مرحله ۸ (ویندوز) را ببینید.
@@ -104,7 +104,7 @@ Browser/App
 **گزینه B — ساخت از سورس (Go 1.22+) — توصیه نمی‌شود، ممکن است ناپایدار باشد:**
 
 ```bash
-git clone https://github.com/kianmhz/GooseRelayVPN.git
+git clone https://github.com/nullroute-lab/GooseRelayVPN.git
 cd GooseRelayVPN
 go build -o goose-client ./cmd/client
 go build -o goose-server ./cmd/server
@@ -115,7 +115,7 @@ go build -o goose-server ./cmd/server
 اگر روی VPS استفاده از کانتینر را ترجیح می‌دهید، می‌توانید `goose-server` را مستقیم از GHCR اجرا کنید:
 
 ```bash
-docker pull ghcr.io/kianmhz/gooserelayvpn-server:latest
+docker pull ghcr.io/nullroute-lab/gooserelayvpn-server:latest
 ```
 
 ### مرحله ۳: ساخت یک کلید مخفی
@@ -224,7 +224,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8443:8443 \
   -v $(pwd)/server_config.json:/app/server_config.json:ro \
-  ghcr.io/kianmhz/gooserelayvpn-server:latest
+  ghcr.io/nullroute-lab/gooserelayvpn-server:latest
 ```
 
 **Docker Compose (پیشنهادی برای راه‌اندازی کانتینری):**
@@ -235,10 +235,10 @@ nano server_config.json
 docker compose up -d
 ```
 
-فایل [`docker-compose.yml`](docker-compose.yml) داخل مخزن آماده است. به‌صورت پیش‌فرض از `ghcr.io/kianmhz/gooserelayvpn-server:latest` استفاده می‌کند و برای پین کردن نسخه می‌توانید override کنید:
+فایل [`docker-compose.yml`](docker-compose.yml) داخل مخزن آماده است. به‌صورت پیش‌فرض از `ghcr.io/nullroute-lab/gooserelayvpn-server:latest` استفاده می‌کند و برای پین کردن نسخه می‌توانید override کنید:
 
 ```bash
-GOOSE_SERVER_IMAGE=ghcr.io/kianmhz/gooserelayvpn-server:vX.Y.Z docker compose up -d
+GOOSE_SERVER_IMAGE=ghcr.io/nullroute-lab/gooserelayvpn-server:vX.Y.Z docker compose up -d
 ```
 
 تست از روی کامپیوتر خودتان:

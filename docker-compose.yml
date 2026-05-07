@@ -1,6 +1,6 @@
 services:
   goose-server:
-    image: ${GOOSE_SERVER_IMAGE:-ghcr.io/kianmhz/gooserelayvpn-server:latest}
+    image: ${GOOSE_SERVER_IMAGE:-ghcr.io/nullroute-lab/gooserelayvpn-server:latest}
     container_name: goose-server
     restart: unless-stopped
     ports:

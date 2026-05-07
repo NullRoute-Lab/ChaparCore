@@ -48,6 +48,11 @@ type Client struct {
 	// when an account has multiple deployments, at the cost of more
 	// simultaneous executions on that account. 0 = use default.
 	IdleSlotsPerBucket int
+
+	// MaxGlobalWorkers limits the total number of concurrent active Zstd
+	// compression and AES encryption operations across all accounts.
+	// 0 means auto-detect based on NumCPU.
+	MaxGlobalWorkers int
 }
 
 // clientFile is the user-friendly client config format.
@@ -104,6 +109,9 @@ type clientFile struct {
 	// rejected — past that the per-account concurrency cap that issue #56
 	// surfaced becomes reachable again.
 	IdleSlotsPerBucket int `json:"idle_slots_per_bucket"`
+
+	// Global limit for active poll operations. Auto-detects if 0.
+	MaxGlobalWorkers int `json:"max_global_workers"`
 }
 
 func firstNonEmpty(values ...string) string {
@@ -410,6 +418,7 @@ func LoadClient(path string) (*Client, error) {
 		CoalesceStepMs:              f.CoalesceStepMs,
 		CoalesceMaxMs:               coalesceMax,
 		IdleSlotsPerBucket:          f.IdleSlotsPerBucket,
+		MaxGlobalWorkers:            f.MaxGlobalWorkers,
 	}
 	return &c, nil
 }

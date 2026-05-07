@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  goose-client:
+    image: alpine:latest
+    network_mode: "host"
+    volumes:
+      - ./goose-client-linux-amd64:/app/goose-client:ro
+      - ./client_config.json:/app/client_config.json:ro
+    entrypoint: ["/app/goose-client"]
+    restart: unless-stopped
