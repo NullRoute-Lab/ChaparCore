@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/frame"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
 )
 
 // TxBufHighWater is the soft ceiling on the per-session tx buffer; EnqueueTx

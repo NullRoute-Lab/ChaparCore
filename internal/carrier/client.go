@@ -8,14 +8,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/frame"
-	"github.com/kianmhz/GooseRelayVPN/internal/session"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
 )
 
 const (
@@ -96,6 +97,9 @@ type Config struct {
 	// users should configure through the config layer to get the cap and the
 	// "why this cap" error message.
 	IdleSlotsPerBucket int
+
+	// MaxGlobalWorkers caps the concurrent active poll operations.
+	MaxGlobalWorkers int
 }
 
 type relayEndpoint struct {
@@ -120,6 +124,10 @@ type relayEndpoint struct {
 	scriptCount          uint64
 	scriptCountAt        time.Time
 	scriptStatsErrLogged bool
+
+	// Probe-Based Quota Recovery
+	quotaExhausted bool
+	probeAllowedAt time.Time
 }
 
 // workersPerEndpoint is the number of concurrent poll goroutines spawned for
@@ -197,6 +205,9 @@ type Client struct {
 	coalesceMu       sync.Mutex
 	coalesceTimer    *time.Timer // armed during a coalesce window; nil otherwise
 	coalesceDeadline time.Time   // hard cap for the in-flight window
+
+	// Global semaphore to limit concurrent active poll requests (CPU scaling)
+	globalSem chan struct{}
 }
 
 // clientStats holds atomic counters surfaced periodically by statsLoop.
@@ -288,7 +299,7 @@ func New(cfg Config) (*Client, error) {
 			len(endpoints))
 	}
 
-	return &Client{
+	cClient := &Client{
 		cfg:                cfg,
 		aead:               aead,
 		httpClients:        NewFrontedClients(cfg.Fronting, pollTimeout, endpoints[0].url),
@@ -305,7 +316,18 @@ func New(cfg Config) (*Client, error) {
 		wake:               newWaker(),
 		coalesceStep:       cfg.CoalesceStep,
 		coalesceMax:        cfg.CoalesceMax,
-	}, nil
+	}
+
+	maxGlobalWorkers := cfg.MaxGlobalWorkers
+	if maxGlobalWorkers <= 0 {
+		maxGlobalWorkers = runtime.NumCPU() * 8
+		log.Printf("[carrier] max_global_workers auto-detected as %d (runtime.NumCPU() * 8)", maxGlobalWorkers)
+	} else {
+		log.Printf("[carrier] max_global_workers configured as %d", maxGlobalWorkers)
+	}
+	cClient.globalSem = make(chan struct{}, maxGlobalWorkers)
+
+	return cClient, nil
 }
 
 // NewSession creates a tunneled session for target ("host:port") and registers
@@ -516,6 +538,10 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 		}
 	}()
 
+	// Acquire global semaphore before performing heavy operations (CPU safety)
+	c.globalSem <- struct{}{}
+	defer func() { <-c.globalSem }()
+
 	body, err := frame.EncodeBatch(c.aead, c.clientID, frames)
 	if err != nil {
 		log.Printf("[carrier] failed to prepare encrypted request batch: %v", err)
@@ -706,6 +732,15 @@ func (c *Client) pickRelayEndpoint() (int, string) {
 	for i := 0; i < n; i++ {
 		idx := (start + i) % n
 		ep := &c.endpoints[idx]
+		if ep.quotaExhausted {
+			if now.After(ep.probeAllowedAt) {
+				// Allow exactly one probe, defer next one by 5 minutes
+				ep.probeAllowedAt = now.Add(5 * time.Minute)
+				c.nextEndpoint = (idx + 1) % n
+				return idx, ep.url
+			}
+			continue
+		}
 		if ep.blacklistedTill.After(now) {
 			continue
 		}
@@ -716,10 +751,17 @@ func (c *Client) pickRelayEndpoint() (int, string) {
 	// All endpoints are unavailable. Pick the one that frees up soonest.
 	chosen := 0
 	soonest := c.endpoints[0].blacklistedTill
+	if c.endpoints[0].quotaExhausted && c.endpoints[0].probeAllowedAt.After(soonest) {
+		soonest = c.endpoints[0].probeAllowedAt
+	}
 	for i := 1; i < n; i++ {
-		if c.endpoints[i].blacklistedTill.Before(soonest) {
+		epSoonest := c.endpoints[i].blacklistedTill
+		if c.endpoints[i].quotaExhausted && c.endpoints[i].probeAllowedAt.After(epSoonest) {
+			epSoonest = c.endpoints[i].probeAllowedAt
+		}
+		if epSoonest.Before(soonest) {
 			chosen = i
-			soonest = c.endpoints[i].blacklistedTill
+			soonest = epSoonest
 		}
 	}
 	c.nextEndpoint = (chosen + 1) % n
@@ -734,12 +776,18 @@ func (c *Client) markEndpointSuccess(endpointIdx int) {
 	}
 	ep := &c.endpoints[endpointIdx]
 	wasFailing := ep.failCount > 0
+	wasExhausted := ep.quotaExhausted
 	ep.statsOK++
 	url := ep.url
 	ep.failCount = 0
 	ep.blacklistedTill = time.Time{}
+	ep.quotaExhausted = false
+	ep.probeAllowedAt = time.Time{}
 	c.endpointMu.Unlock()
-	if wasFailing {
+
+	if wasExhausted {
+		log.Printf("[carrier] endpoint %s recovered from quota exhaustion (back in rotation)", shortScriptKey(url))
+	} else if wasFailing {
 		log.Printf("[carrier] endpoint %s recovered (back in rotation)", shortScriptKey(url))
 	}
 }
@@ -758,17 +806,36 @@ func (c *Client) markEndpoint403(endpointIdx int) {
 	c.markEndpointFailureWith(endpointIdx, 5)
 }
 
-// markEndpoint429 handles HTTP 429 (rate-limited). Shorter self-heal than a
-// full quota exhaustion: jump to failCount floor = 3 → next hit → 4 → 24 s TTL.
+// markEndpoint429 handles HTTP 429 (rate-limited).
 func (c *Client) markEndpoint429(endpointIdx int) {
-	c.markEndpointFailureWith(endpointIdx, 3)
+	c.markQuotaExhausted(endpointIdx)
 }
 
 // markEndpointHardFailure is used when classifyRelayErrorBody identifies a quota
 // or auth error inside an HTML/JSON error page (even when HTTP status was 200).
-// Same backoff tier as markEndpoint403.
 func (c *Client) markEndpointHardFailure(endpointIdx int) {
-	c.markEndpointFailureWith(endpointIdx, 5)
+	c.markQuotaExhausted(endpointIdx)
+}
+
+// markQuotaExhausted sets the endpoint state to QuotaExhausted and enables
+// 5-minute active probe mode.
+func (c *Client) markQuotaExhausted(endpointIdx int) {
+	c.endpointMu.Lock()
+	if endpointIdx < 0 || endpointIdx >= len(c.endpoints) {
+		c.endpointMu.Unlock()
+		return
+	}
+
+	ep := &c.endpoints[endpointIdx]
+	wasExhausted := ep.quotaExhausted
+	ep.quotaExhausted = true
+	ep.probeAllowedAt = time.Now().Add(5 * time.Minute)
+	url := ep.url
+	c.endpointMu.Unlock()
+
+	if !wasExhausted {
+		log.Printf("[carrier] Endpoint %s Quota exceeded. Suspending heavy traffic and transitioning to 5-minute active probe mode.", shortScriptKey(url))
+	}
 }
 
 // markEndpointFailureWith is the shared implementation. minFailCount is a floor

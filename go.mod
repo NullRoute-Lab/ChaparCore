@@ -1,4 +1,4 @@
-module github.com/kianmhz/GooseRelayVPN
+module github.com/nullroute-lab/GooseRelayVPN
 
 go 1.22
 

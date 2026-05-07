@@ -8,8 +8,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/config"
-	"github.com/kianmhz/GooseRelayVPN/internal/exit"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/config"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/exit"
 )
 
 var version = "dev"

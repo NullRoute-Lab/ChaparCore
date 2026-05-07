@@ -9,8 +9,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/kianmhz/GooseRelayVPN/internal/frame"
-	"github.com/kianmhz/GooseRelayVPN/internal/protocol"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
+	"github.com/nullroute-lab/GooseRelayVPN/internal/protocol"
 )
 
 // Diagnose performs a one-shot end-to-end health check against the first
