@@ -59,7 +59,7 @@ func (c *Client) endpointHealthCounts() (healthy, total int) {
 	now := time.Now()
 	total = len(c.endpoints)
 	for _, ep := range c.endpoints {
-		if !ep.blacklistedTill.After(now) && !ep.suspendedUntil.After(now) {
+		if !ep.blacklistedTill.After(now) && !ep.quotaExhausted {
 			healthy++
 		}
 	}
@@ -92,9 +92,13 @@ func (c *Client) endpointStatsLine() string {
 			// is also being hit by other clients or by manual /exec probes.
 			part = fmt.Sprintf("%s script=%d", part, ep.scriptCount)
 		}
-		if ep.suspendedUntil.After(now) {
-			remaining := time.Until(ep.suspendedUntil).Round(time.Second)
-			part = fmt.Sprintf("%s susp=%s", part, remaining)
+		if ep.quotaExhausted {
+			if ep.probeAllowedAt.After(now) {
+				remaining := time.Until(ep.probeAllowedAt).Round(time.Second)
+				part = fmt.Sprintf("%s probe_in=%s", part, remaining)
+			} else {
+				part = fmt.Sprintf("%s probe=ready", part)
+			}
 		} else if ep.blacklistedTill.After(now) {
 			remaining := time.Until(ep.blacklistedTill).Round(time.Second)
 			part = fmt.Sprintf("%s bl=%s", part, remaining)

@@ -125,8 +125,9 @@ type relayEndpoint struct {
 	scriptCountAt        time.Time
 	scriptStatsErrLogged bool
 
-	// Chronological Quota Suspension
-	suspendedUntil time.Time
+	// Probe-Based Quota Recovery
+	quotaExhausted bool
+	probeAllowedAt time.Time
 }
 
 // workersPerEndpoint is the number of concurrent poll goroutines spawned for
@@ -731,7 +732,16 @@ func (c *Client) pickRelayEndpoint() (int, string) {
 	for i := 0; i < n; i++ {
 		idx := (start + i) % n
 		ep := &c.endpoints[idx]
-		if ep.suspendedUntil.After(now) || ep.blacklistedTill.After(now) {
+		if ep.quotaExhausted {
+			if now.After(ep.probeAllowedAt) {
+				// Allow exactly one probe, defer next one by 5 minutes
+				ep.probeAllowedAt = now.Add(5 * time.Minute)
+				c.nextEndpoint = (idx + 1) % n
+				return idx, ep.url
+			}
+			continue
+		}
+		if ep.blacklistedTill.After(now) {
 			continue
 		}
 		c.nextEndpoint = (idx + 1) % n
@@ -741,13 +751,13 @@ func (c *Client) pickRelayEndpoint() (int, string) {
 	// All endpoints are unavailable. Pick the one that frees up soonest.
 	chosen := 0
 	soonest := c.endpoints[0].blacklistedTill
-	if c.endpoints[0].suspendedUntil.After(soonest) {
-		soonest = c.endpoints[0].suspendedUntil
+	if c.endpoints[0].quotaExhausted && c.endpoints[0].probeAllowedAt.After(soonest) {
+		soonest = c.endpoints[0].probeAllowedAt
 	}
 	for i := 1; i < n; i++ {
 		epSoonest := c.endpoints[i].blacklistedTill
-		if c.endpoints[i].suspendedUntil.After(epSoonest) {
-			epSoonest = c.endpoints[i].suspendedUntil
+		if c.endpoints[i].quotaExhausted && c.endpoints[i].probeAllowedAt.After(epSoonest) {
+			epSoonest = c.endpoints[i].probeAllowedAt
 		}
 		if epSoonest.Before(soonest) {
 			chosen = i
@@ -766,12 +776,18 @@ func (c *Client) markEndpointSuccess(endpointIdx int) {
 	}
 	ep := &c.endpoints[endpointIdx]
 	wasFailing := ep.failCount > 0
+	wasExhausted := ep.quotaExhausted
 	ep.statsOK++
 	url := ep.url
 	ep.failCount = 0
 	ep.blacklistedTill = time.Time{}
+	ep.quotaExhausted = false
+	ep.probeAllowedAt = time.Time{}
 	c.endpointMu.Unlock()
-	if wasFailing {
+
+	if wasExhausted {
+		log.Printf("[carrier] endpoint %s recovered from quota exhaustion (back in rotation)", shortScriptKey(url))
+	} else if wasFailing {
 		log.Printf("[carrier] endpoint %s recovered (back in rotation)", shortScriptKey(url))
 	}
 }
@@ -792,39 +808,34 @@ func (c *Client) markEndpoint403(endpointIdx int) {
 
 // markEndpoint429 handles HTTP 429 (rate-limited).
 func (c *Client) markEndpoint429(endpointIdx int) {
-	c.suspendEndpoint(endpointIdx)
+	c.markQuotaExhausted(endpointIdx)
 }
 
 // markEndpointHardFailure is used when classifyRelayErrorBody identifies a quota
 // or auth error inside an HTML/JSON error page (even when HTTP status was 200).
 func (c *Client) markEndpointHardFailure(endpointIdx int) {
-	c.suspendEndpoint(endpointIdx)
+	c.markQuotaExhausted(endpointIdx)
 }
 
-// suspendEndpoint calculates the time until the next 07:00:00 UTC and marks the
-// endpoint as suspended until then.
-func (c *Client) suspendEndpoint(endpointIdx int) {
+// markQuotaExhausted sets the endpoint state to QuotaExhausted and enables
+// 5-minute active probe mode.
+func (c *Client) markQuotaExhausted(endpointIdx int) {
 	c.endpointMu.Lock()
 	if endpointIdx < 0 || endpointIdx >= len(c.endpoints) {
 		c.endpointMu.Unlock()
 		return
 	}
 
-	now := time.Now().UTC()
-	resetTime := time.Date(now.Year(), now.Month(), now.Day(), 7, 0, 0, 0, time.UTC)
-	if now.After(resetTime) {
-		resetTime = resetTime.Add(24 * time.Hour)
-	}
-
 	ep := &c.endpoints[endpointIdx]
-	ep.suspendedUntil = resetTime
+	wasExhausted := ep.quotaExhausted
+	ep.quotaExhausted = true
+	ep.probeAllowedAt = time.Now().Add(5 * time.Minute)
 	url := ep.url
 	c.endpointMu.Unlock()
 
-	remaining := time.Until(resetTime)
-	hours := int(remaining.Hours())
-	minutes := int(remaining.Minutes()) % 60
-	log.Printf("[carrier] Endpoint %s Quota exceeded. Suspended strictly until 07:00 UTC (%dh %dm remaining).", shortScriptKey(url), hours, minutes)
+	if !wasExhausted {
+		log.Printf("[carrier] Endpoint %s Quota exceeded. Suspending heavy traffic and transitioning to 5-minute active probe mode.", shortScriptKey(url))
+	}
 }
 
 // markEndpointFailureWith is the shared implementation. minFailCount is a floor
