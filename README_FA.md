@@ -10,6 +10,18 @@
 
 > ⚠️ **برای سرور خروجی به یک VPS کوچک نیاز دارید.** برخلاف پراکسی‌های صرفاً Apps Script، این پروژه TCP خام را تونل می‌کند — هر چیزی که SOCKS5 حمل می‌کند — پس یک `net.Dial` واقعی باید جایی انجام شود. یک VPS ارزان حدود ۴ دلار در ماه کافی است. در عوض می‌توانید SSH، IMAP و هر پروتکل دلخواه را تونل کنید — نه فقط HTTP.
 
+## 🛡️ معماری پیشرفته Aegis (مقاومت در برابر DPI و فیلترینگ)
+
+- **استتار ترافیک JA3/JA4 (توسط `uTLS`):** شبیه‌سازی دقیق اثر انگشت مرورگر Chrome روی بستر HTTP/2.
+- **موتور فریب و چندریختی لایه ۷:** دور زدن اثر انگشت کدهای AST با تصادفی‌سازی deploymentهای Apps Script و استفاده از صفحاتHTML5 فریب‌دهنده (fail-open decoy).
+- **تجمیع هم‌افزا (ضد تحلیل جریان ترافیک):** دسته‌بندی ترافیک همراه با تاخیرهای تصادفی رمزنگاری‌شده (Cryptographic Jitter) و تزریق آنتروپی (Entropy Padding) برای تغییر اندازه بسته‌ها پیش از فشرده‌سازی Zstd.
+- **موازی‌سازی هوشمند و کاوشگر فعال:** تنظیم خودکار مصرف پردازنده کلاینت (`max_global_workers`) و بررسی غیرفعال سلامت سرورها هر ۵ دقیقه برای دور زدن محدودیت‌های سهمیه (Quota).
+
+## 🚀 نقشه راه / ایده‌های آینده
+
+- **تصحیح خطای پیش‌رو (FEC):** پیاده‌سازی پروتکل FEC برای مقابله با سیاست‌های شدید "حذف تصادفی بسته‌ها". با تولید بسته‌های بازیابی (مثلاً ۱ بسته ترمیمی به ازای هر ۳ بسته داده)، سرور می‌تواند بسته‌های حذف شده را در لحظه بازسازی کند بدون آنکه نیاز به ارسال مجدد و پرهزینه اطلاعات باشد.
+- **شکل‌دهی ترافیک مبتنی بر هوش مصنوعی (عامل RL):** ادغام یک مدل سبک یادگیری تقویتی (RL) در سمت کلاینت برای تطبیق لحظه‌ای نحوه قطعه‌بندی، زمان‌بندی و تزریق آنتروپی بر اساس بازخورد بلادرنگ سیستم‌های DPI. این سیستم شامل یک پروتکل سیگنال‌دهی درون‌باند رمزنگاری‌شده (instruction mode) خواهد بود تا رمزگشای سمت سرور بتواند به‌طور همگام خود را با تغییرات اعمال شده توسط مدل یادگیری ماشین کلاینت تطبیق دهد.
+
 ## حمایت از پروژه
 
 اگر این پروژه را دوست دارید، لطفاً با ستاره دادن در GitHub (⭐) از آن حمایت کنید. این کار باعث دیده شدن پروژه می‌شود.
@@ -94,12 +106,12 @@ Browser/App
    (عدد `vX.Y.Z` را با آخرین نسخه در صفحه Releases جایگزین کنید.)
 
 > 💡 **اگر صفحه Releases باز نمی‌شود**، می‌توانید مستقیماً با لینک‌های زیر دانلود کنید (`vX.Y.Z` را با آخرین نسخه جایگزین کنید):
-> - **کلاینت — ویندوز:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-> - **کلاینت — macOS (Apple Silicon):** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-> - **کلاینت — macOS (Intel):** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-> - **کلاینت — لینوکس:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-> - **کلاینت — اندروید/Termux:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
-> - **سرور — لینوکس:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
+> - **کلاینت — ویندوز:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
+> - **کلاینت — macOS (Apple Silicon):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
+> - **کلاینت — macOS (Intel):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
+> - **کلاینت — لینوکس:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
+> - **کلاینت — اندروید/Termux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
+> - **سرور — لینوکس:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
 
 **گزینه B — ساخت از سورس (Go 1.22+) — توصیه نمی‌شود، ممکن است ناپایدار باشد:**
 
@@ -356,7 +368,7 @@ pkg install wget tar -y
 
 **۲. دانلود و استخراج کلاینت:**
 ```bash
-wget https://github.com/Kianmhz/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
+wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
 tar -xzvf GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
 cd GooseRelayVPN-client-v1.6.0-android-arm64/
 chmod +x goose-client
