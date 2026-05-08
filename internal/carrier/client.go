@@ -1247,18 +1247,18 @@ func shortScriptKey(scriptURL string) string {
 	return "(unknown)"
 }
 
-func cryptoRandDuration(minMs, maxMs time.Duration) time.Duration {
-	if minMs >= maxMs {
-		return minMs
+func cryptoRandDuration(min, maxDuration time.Duration) time.Duration {
+	if min >= maxDuration {
+		return min
 	}
-	diff := int64(maxMs - minMs)
+	diff := int64(maxDuration - min)
 	if diff <= 0 {
-		return minMs
+		return min
 	}
 	max := big.NewInt(diff)
 	n, err := rand.Int(rand.Reader, max)
 	if err != nil {
-		return minMs
+		return min
 	}
-	return minMs + time.Duration(n.Int64())
+	return min + time.Duration(n.Int64())
 }
