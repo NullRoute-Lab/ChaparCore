@@ -10,6 +10,18 @@ A SOCKS5 VPN that tunnels **raw TCP** through a Google Apps Script web app to yo
 
 > ⚠️ **You need a small VPS for the exit server.** Unlike pure-Apps-Script proxies, this project tunnels raw TCP — anything SOCKS5 can carry — so a real `net.Dial` has to happen somewhere. A small $4/month VPS is plenty. In exchange you can tunnel SSH, IMAP, custom protocols, anything — not just HTTP.
 
+## 🛡️ Advanced Aegis Architecture (Anti-DPI & Anti-Ban)
+
+- **JA3/JA4 TLS Camouflage (`uTLS`):** Chrome browser fingerprinting over explicit HTTP/2.
+- **L7 Polymorphic Decoy Engine:** Bypassing AST fingerprinting with randomized GAS deployments and a fail-open HTML5 decoy.
+- **Synergistic Coalesce (Anti-Flow Analysis):** Traffic batching combined with Cryptographic Jitter and Entropy Padding (randomizing packet sizes prior to Zstd compression).
+- **Hardware-Aware Concurrency & Active Probing:** CPU auto-scaling (`max_global_workers`) and passive 5-minute health checks for exhausted quotas.
+
+## 🚀 Roadmap / Future Ideas
+
+- **Forward Error Correction (FEC):** Implementing an FEC sub-protocol to combat extreme "Random Packet Drop" policies. By generating parity packets (e.g., 1 recovery packet for every 3 data packets), the server can reconstruct dropped packets on the fly without costly retransmissions.
+- **AI-Driven Traffic Shaping (RL Agent):** Integrating a lightweight, quantized Reinforcement Learning (RL) model on the client side to dynamically adapt packet fragmentation, timing, and entropy padding based on real-time DPI throttling feedback. This will include an encrypted in-band signaling protocol (instruction mode) so the server's decoder can synchronously adapt to the client's ML-driven mutations.
+
 ## Support This Project
 
 If you like this project, please consider starring it on GitHub (⭐). It helps the project get discovered.
@@ -94,12 +106,12 @@ You need two separate programs:
    (Replace `vX.Y.Z` with the latest version number from the Releases page.)
 
 > 💡 **If the Releases page doesn't open**, you can download directly using these links (replace `vX.Y.Z` with the latest version):
-> - **Client — Windows:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-> - **Client — macOS (Apple Silicon):** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-> - **Client — macOS (Intel):** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-> - **Client — Linux:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-> - **Client — Android/Termux:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
-> - **Server — Linux:** `https://github.com/Kianmhz/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
+> - **Client — Windows:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
+> - **Client — macOS (Apple Silicon):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
+> - **Client — macOS (Intel):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
+> - **Client — Linux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
+> - **Client — Android/Termux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
+> - **Server — Linux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
 
 **Option B — Build from source (Go 1.22+) — not recommended, may be unstable:**
 
@@ -354,7 +366,7 @@ pkg install wget tar -y
 
 **2. Download and extract the client:**
 ```bash
-wget https://github.com/Kianmhz/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
+wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
 tar -xzvf GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
 cd GooseRelayVPN-client-v1.6.0-android-arm64/
 chmod +x goose-client
