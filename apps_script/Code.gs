@@ -155,9 +155,9 @@ function _renderDecoyPage_() {
   h.push('p.classList.add("active")})});');
   h.push('</script></body></html>');
 
-  return ContentService
-    .createTextOutput(h.join(''))
-    .setMimeType(ContentService.MimeType.HTML);
+  return HtmlService.createHtmlOutput(h.join(''))
+    .setTitle('StreamVid — Watch Together')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
