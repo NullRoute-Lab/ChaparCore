@@ -171,6 +171,8 @@ func main() {
 		CoalesceMax:        time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
 		IdleSlotsPerBucket: cfg.IdleSlotsPerBucket,
 		MaxGlobalWorkers:   cfg.MaxGlobalWorkers,
+		JitterMin:          time.Duration(cfg.JitterMinMs) * time.Millisecond,
+		JitterMax:          time.Duration(cfg.JitterMaxMs) * time.Millisecond,
 		Fronting: carrier.FrontingConfig{
 			GoogleIP: cfg.GoogleIP,
 			SNIHosts: cfg.SNIHosts,
