@@ -539,8 +539,12 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 	}()
 
 	// Acquire global semaphore before performing heavy operations (CPU safety)
-	c.globalSem <- struct{}{}
-	defer func() { <-c.globalSem }()
+	select {
+	case <-ctx.Done():
+		return false
+	case c.globalSem <- struct{}{}:
+		defer func() { <-c.globalSem }()
+	}
 
 	body, err := frame.EncodeBatch(c.aead, c.clientID, frames)
 	if err != nil {
