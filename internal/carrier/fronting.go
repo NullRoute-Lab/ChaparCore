@@ -1,7 +1,3 @@
-// Package carrier implements the client side of the Apps Script transport:
-// a long-poll loop that batches outgoing frames, POSTs them through a
-// domain-fronted HTTPS connection, and routes the response frames back to
-// their sessions.
 package carrier
 
 import (
@@ -16,47 +12,26 @@ import (
 	"strings"
 	"time"
 
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 )
 
 const frontedProbeOKBody = "GooseRelay forwarder OK"
 
-// FrontingConfig describes how to reach script.google.com without revealing
-// the real Host to a passive on-path observer: dial GoogleIP, do a TLS
-// handshake with one of the SNIHosts. Go's default behavior of Host = URL.Host
-// then routes the request to the right Google backend (and follows the Apps
-// Script 302 redirect to script.googleusercontent.com correctly).
-//
-// Multiple SNIHosts are supported: each creates an independent HTTP client
-// with its own connection pool, which maps to a separate TLS SNI value and
-// therefore a separate per-domain throttle bucket on the Google CDN. Requests
-// are distributed across clients in round-robin order.
 type FrontingConfig struct {
-	GoogleIP string   // "ip:443"
-	SNIHosts []string // e.g. ["www.google.com", "mail.google.com", "accounts.google.com"]
+	GoogleIP string
+	SNIHosts []string
 }
 
-// NewFrontedClients returns one *http.Client per SNI host in cfg.SNIHosts.
-// Each client has an independent transport/connection-pool so requests to
-// different SNI names are genuinely separate TLS sessions, each consuming
-// its own throttle bucket.
-//
-// pollTimeout is the per-request ceiling; it should comfortably exceed the
-// server's long-poll window (we use ~25 s).
-//
-// Each SNI gets its own tls.ClientSessionCache. A ticket from one Google
-// edge backend (e.g. www.google.com) is not valid for another (e.g.
-// mail.google.com) because they terminate at different fronts, so a
-// shared cache produces no resumes — only same-SNI reuse helps.
 func NewFrontedClients(cfg FrontingConfig, pollTimeout time.Duration, probeURL string) []*http.Client {
 	hosts := cfg.SNIHosts
 	if len(hosts) == 0 {
 		hosts = []string{"www.google.com"}
 	}
-	caches := make(map[string]tls.ClientSessionCache, len(hosts))
+	caches := make(map[string]utls.ClientSessionCache, len(hosts))
 	for _, sni := range hosts {
 		if _, ok := caches[sni]; !ok {
-			caches[sni] = tls.NewLRUClientSessionCache(8)
+			caches[sni] = utls.NewLRUClientSessionCache(8)
 		}
 	}
 	clients := make([]*http.Client, len(hosts))
@@ -64,9 +39,7 @@ func NewFrontedClients(cfg FrontingConfig, pollTimeout time.Duration, probeURL s
 		clients[i] = newFrontedClient(cfg.GoogleIP, sni, pollTimeout, caches[sni])
 	}
 	hosts, clients = filterFrontedClientsByProbe(hosts, clients, probeURL)
-	// Best-effort: warm each SNI's TLS session in the background so the
-	// first real poll resumes (saves ~140 ms TLS handshake per cold conn).
-	// Zero Apps Script executions consumed; failures are silently ignored.
+
 	prewarmFrontedClients(cfg.GoogleIP, hosts, caches)
 	return clients
 }
@@ -92,10 +65,6 @@ func (r frontedProbeResult) latency() time.Duration {
 	return sorted[len(sorted)/2]
 }
 
-// filterFrontedClientsByProbe probes each configured SNI once at startup and
-// removes only clearly bad candidates: hosts that never complete a response,
-// or successful hosts that are dramatic outliers while at least two faster
-// survivors remain. Round-robin still happens across the retained set.
 func filterFrontedClientsByProbe(hosts []string, clients []*http.Client, probeURL string) ([]string, []*http.Client) {
 	if len(hosts) <= 1 || probeURL == "" {
 		return hosts, clients
@@ -275,16 +244,7 @@ func logFrontedProbeDecision(results []frontedProbeResult, keep []int) {
 	log.Printf("[fronting] startup probe kept %d/%d sni hosts median_ttfb=%s", len(keep), len(results), median.Round(time.Millisecond))
 }
 
-// prewarmFrontedClients fires one TLS dial per SNI host in the background
-// to populate each SNI's session ticket cache. Critical detail: in TLS 1.3
-// the server sends NewSessionTicket *after* the handshake completes, on
-// the data channel. Closing immediately after HandshakeContext drops the
-// ticket on the floor (this is exactly why our first probe showed
-// resumed=false everywhere). To capture the ticket we issue a tiny read
-// with a short deadline; the read errors out on deadline but by then the
-// crypto/tls layer has consumed the post-handshake message and stored the
-// ticket in the cache.
-func prewarmFrontedClients(googleIP string, sniHosts []string, caches map[string]tls.ClientSessionCache) {
+func prewarmFrontedClients(googleIP string, sniHosts []string, caches map[string]utls.ClientSessionCache) {
 	const (
 		dialTimeout   = 3 * time.Second
 		ticketWindow  = 500 * time.Millisecond
@@ -292,7 +252,7 @@ func prewarmFrontedClients(googleIP string, sniHosts []string, caches map[string
 	)
 	dialer := &net.Dialer{Timeout: dialTimeout}
 	for _, sni := range sniHosts {
-		go func(sniHost string, cache tls.ClientSessionCache) {
+		go func(sniHost string, cache utls.ClientSessionCache) {
 			ctx, cancel := context.WithTimeout(context.Background(), overallBudget)
 			defer cancel()
 			addr := googleIP
@@ -304,88 +264,89 @@ func prewarmFrontedClients(googleIP string, sniHosts []string, caches map[string
 				return
 			}
 			defer rawConn.Close()
-			tlsConn := tls.Client(rawConn, &tls.Config{
-				ServerName: sniHost,
-				// Pin TLS 1.3 floor to prevent downgrade; Go's default minimum is 1.2.
-				MinVersion:         tls.VersionTLS13,
+
+			uconn := utls.UClient(rawConn, &utls.Config{
+				ServerName:         sniHost,
 				ClientSessionCache: cache,
-				// Match the real http.Transport ALPN so the resumed
-				// session is usable by HTTP/2 in the actual poll.
-				NextProtos: []string{"h2", "http/1.1"},
-			})
-			if err := tlsConn.HandshakeContext(ctx); err != nil {
+			}, utls.HelloChrome_Auto)
+
+			if err := uconn.HandshakeContext(ctx); err != nil {
 				return
 			}
-			// Wait briefly so the post-handshake NewSessionTicket frame
-			// arrives and crypto/tls stores it in cache. We expect the
-			// read to time out (no real server-initiated data), which is
-			// fine — the side-effect of receiving and parsing the ticket
-			// is what we actually want.
-			_ = tlsConn.SetReadDeadline(time.Now().Add(ticketWindow))
+
+			_ = uconn.SetReadDeadline(time.Now().Add(ticketWindow))
 			var buf [1]byte
-			_, _ = tlsConn.Read(buf[:])
+			_, _ = uconn.Read(buf[:])
 		}(sni, caches[sni])
 	}
 }
 
-// newFrontedClient builds a single *http.Client that dials googleIP and
-// presents sniHost in the TLS handshake.
-func newFrontedClient(googleIP, sniHost string, pollTimeout time.Duration, sessionCache tls.ClientSessionCache) *http.Client {
+// customTestRoundTripper wraps the h2 transport but falls back to h1 for local test servers.
+type customTestRoundTripper struct {
+	h2 *http2.Transport
+	h1 *http.Transport
+}
+
+func (c *customTestRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	host := req.URL.Hostname()
+	if host == "127.0.0.1" || host == "localhost" {
+		port := req.URL.Port()
+		if port != "443" && port != "" {
+			return c.h1.RoundTrip(req)
+		}
+	}
+	return c.h2.RoundTrip(req)
+}
+
+func newFrontedClient(googleIP, sniHost string, pollTimeout time.Duration, sessionCache utls.ClientSessionCache) *http.Client {
 	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			if googleIP != "" {
-				return dialer.DialContext(ctx, "tcp", googleIP)
+	t2 := &http2.Transport{
+		AllowHTTP: true,
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+			dialTarget := googleIP
+			if dialTarget == "" {
+				dialTarget = addr
 			}
-			return dialer.DialContext(ctx, network, addr)
+			rawConn, err := dialer.DialContext(ctx, "tcp", dialTarget)
+			if err != nil {
+				return nil, fmt.Errorf("fronted dial %s: %w", dialTarget, err)
+			}
+
+			uconn := utls.UClient(rawConn, &utls.Config{
+				ServerName:         sniHost,
+				ClientSessionCache: sessionCache,
+			}, utls.HelloChrome_Auto)
+
+			if err := uconn.HandshakeContext(ctx); err != nil {
+				rawConn.Close()
+				return nil, fmt.Errorf("utls handshake SNI=%s: %w", sniHost, err)
+			}
+
+			cs := uconn.ConnectionState()
+			if cs.NegotiatedProtocol != "h2" {
+				rawConn.Close()
+				return nil, fmt.Errorf(
+					"utls ALPN mismatch: got %q, require h2 (SNI=%s, target=%s)",
+					cs.NegotiatedProtocol, sniHost, dialTarget,
+				)
+			}
+
+			return uconn, nil
 		},
-		TLSClientConfig: &tls.Config{
-			ServerName: sniHost,
-			// Pin TLS 1.3 floor to prevent downgrade; Go's default minimum is 1.2.
-			MinVersion: tls.VersionTLS13,
-			// Enable TLS session resumption tickets so reconnects after
-			// idle timeout (and the prewarm dial in NewFrontedClients) can
-			// skip a full handshake round-trip.
-			ClientSessionCache: sessionCache,
-			// Pin ALPN so the resumed session matches the prewarm dial.
-			// (The TLS 1.3 resumption ticket is bound to ALPN; mismatched
-			// NextProtos causes the server to fall back to a full handshake.)
-			NextProtos: []string{"h2", "http/1.1"},
-		},
-		ForceAttemptHTTP2: true,
-		MaxIdleConns:      16,
-		// Default MaxIdleConnsPerHost is 2, which forces idle h1 conns to be
-		// recycled between poll workers when ALPN downgrades or the server
-		// closes h2 streams. Pin it to roughly the worker count per endpoint
-		// so each worker can keep its own warm conn.
-		MaxIdleConnsPerHost: workersPerEndpoint * 2,
-		// Larger HTTP read/write buffers cut syscall count on bulk batch
-		// bodies (server can return up to ~12 MB per poll under busy
-		// fan-out: 144 frames × 256 KB max payload, base64-expanded).
-		WriteBufferSize:       64 * 1024,
-		ReadBufferSize:        64 * 1024,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		ReadIdleTimeout: 30 * time.Second,
+		PingTimeout:     15 * time.Second,
 	}
 
-	// Configure HTTP/2 so the long-lived h2 connection sends pings and detects
-	// black-holed peers quickly. Without ReadIdleTimeout, a dead h2 conn can
-	// linger until the kernel's TCP keepalive fires (~2 hours by default),
-	// leaking poll worker time as in-flight requests stall.
-	if h2t, err := http2.ConfigureTransports(transport); err == nil && h2t != nil {
-		h2t.ReadIdleTimeout = 30 * time.Second
-		h2t.PingTimeout = 15 * time.Second
-		// Raise the max DATA frame size we are willing to receive from 16 KiB
-		// (spec default) to 1 MiB. Each DATA frame carries a 9-byte header,
-		// so on a long bulk download (Apps Script gateway streaming a video
-		// chunk back) the framing overhead drops by ~64× and the receiver
-		// makes ~64× fewer Read syscalls per MiB. Stream/conn flow control
-		// windows in golang.org/x/net/http2 already default to 4 MiB / 1 GiB,
-		// so the actual throughput cap is RTT-bound, not window-bound.
-		h2t.MaxReadFrameSize = 1 << 20
+	t1 := &http.Transport{
+		DialContext: dialer.DialContext,
+		ForceAttemptHTTP2: false,
 	}
 
-	return &http.Client{Transport: transport, Timeout: pollTimeout}
+	rt := &customTestRoundTripper{
+		h2: t2,
+		h1: t1,
+	}
+
+	return &http.Client{Transport: rt, Timeout: pollTimeout}
 }
