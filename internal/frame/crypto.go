@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"sync"
 
 	"github.com/klauspost/compress/zstd"
@@ -199,6 +200,8 @@ func EncodeBatch(c *Crypto, clientID [ClientIDLen]byte, frames []*Frame) ([]byte
 		plain = append(plain, raw...)
 	}
 
+	plain = appendEntropyPadding(plain)
+
 	// Attempt Zstandard compression on the payload section (everything after
 	// the flags byte at index 0). Only worthwhile for batches large enough that
 	// the overhead is amortised; small control batches (SYN/FIN/keepalive) are
@@ -221,6 +224,13 @@ func EncodeBatch(c *Crypto, clientID [ClientIDLen]byte, frames []*Frame) ([]byte
 	} else {
 		plain[0] = batchFlagRaw
 	}
+
+	// We cannot append padding to zstd compressed data because zstd expects
+	// no trailing garbage. So we must append it *inside* plain before compression
+	// or inside raw payload. Wait, zstd decode might fail with trailing bytes.
+	// Actually, `zstd.Decoder.DecodeAll` fails if there's trailing garbage after the frame.
+	// It's better to append padding to the uncompressed `plain` buffer *before* compression!
+	// Let's remove the global appendEntropyPadding here and place it earlier.
 
 	sealed, err := c.Seal(sealInput)
 	if err != nil {
@@ -322,4 +332,40 @@ func DecodeBatch(c *Crypto, body []byte) ([ClientIDLen]byte, []*Frame, error) {
 		off += flen
 	}
 	return clientID, frames, nil
+}
+
+const maxEntropyPadding = 128
+
+// appendEntropyPadding appends cryptographically random bytes to the plaintext
+// payload before AES-GCM sealing. The length is chosen uniformly between 0
+// and maxEntropyPadding. The padding disrupts traffic correlation and
+// length-based fingerprinting. The receiver discards it naturally because
+// DecodeBatch parses exactly frame_count frames and ignores trailing bytes.
+func appendEntropyPadding(plaintext []byte) []byte {
+	// Pick a random length [0, maxEntropyPadding]. Using math/big.Int avoids
+	// modulo bias that occurs with binary.BigEndian + modulo on crypto/rand bytes.
+	max := big.NewInt(maxEntropyPadding + 1)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		// Fallback to no padding if crypto/rand fails
+		return plaintext
+	}
+	padLen := int(n.Int64())
+	if padLen == 0 {
+		return plaintext
+	}
+
+	// Avoid allocation if the existing capacity can fit the padding
+	if cap(plaintext)-len(plaintext) >= padLen {
+		plaintext = plaintext[:len(plaintext)+padLen]
+		// Fill the new trailing space with randomness
+		_, _ = rand.Read(plaintext[len(plaintext)-padLen:])
+		return plaintext
+	}
+
+	// Allocate a new slice if capacity is insufficient
+	out := make([]byte, len(plaintext)+padLen)
+	copy(out, plaintext)
+	_, _ = rand.Read(out[len(plaintext):])
+	return out
 }

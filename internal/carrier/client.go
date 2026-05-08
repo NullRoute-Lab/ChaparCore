@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"runtime"
 	"sort"
@@ -100,6 +101,10 @@ type Config struct {
 
 	// MaxGlobalWorkers caps the concurrent active poll operations.
 	MaxGlobalWorkers int
+
+	// Timing disruption for anti-correlation
+	JitterMin time.Duration
+	JitterMax time.Duration
 }
 
 type relayEndpoint struct {
@@ -537,6 +542,16 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 			c.stats.pollsFail.Add(1)
 		}
 	}()
+
+	// Add timing jitter before encoding to disrupt traffic correlation
+	if c.cfg.JitterMin > 0 && c.cfg.JitterMax > c.cfg.JitterMin {
+		jitter := cryptoRandDuration(c.cfg.JitterMin, c.cfg.JitterMax)
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(jitter):
+		}
+	}
 
 	// Acquire global semaphore before performing heavy operations (CPU safety)
 	select {
@@ -1230,4 +1245,20 @@ func shortScriptKey(scriptURL string) string {
 		}
 	}
 	return "(unknown)"
+}
+
+func cryptoRandDuration(minMs, maxMs time.Duration) time.Duration {
+	if minMs >= maxMs {
+		return minMs
+	}
+	diff := int64(maxMs - minMs)
+	if diff <= 0 {
+		return minMs
+	}
+	max := big.NewInt(diff)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return minMs
+	}
+	return minMs + time.Duration(n.Int64())
 }

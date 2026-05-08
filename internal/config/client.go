@@ -53,6 +53,10 @@ type Client struct {
 	// compression and AES encryption operations across all accounts.
 	// 0 means auto-detect based on NumCPU.
 	MaxGlobalWorkers int
+
+	// Coalesce Jitter (Timing Disruption)
+	JitterMinMs int
+	JitterMaxMs int
 }
 
 // clientFile is the user-friendly client config format.
@@ -112,6 +116,10 @@ type clientFile struct {
 
 	// Global limit for active poll operations. Auto-detects if 0.
 	MaxGlobalWorkers int `json:"max_global_workers"`
+
+	// Timing disruption for anti-correlation
+	JitterMinMs int `json:"jitter_min_ms"`
+	JitterMaxMs int `json:"jitter_max_ms"`
 }
 
 func firstNonEmpty(values ...string) string {
@@ -404,6 +412,10 @@ func LoadClient(path string) (*Client, error) {
 		return nil, fmt.Errorf("idle_slots_per_bucket must be 0–3 in %s (got %d). 0 or unset = default (1, safest); 2–3 increases download throughput at the cost of more simultaneous executions per Google account, which can re-trigger issue #56 if your accounts can't sustain that concurrency", path, f.IdleSlotsPerBucket)
 	}
 
+	if f.JitterMinMs > 0 && f.JitterMaxMs < f.JitterMinMs {
+		return nil, fmt.Errorf("jitter_max_ms (%d) must be greater than or equal to jitter_min_ms (%d) in %s", f.JitterMaxMs, f.JitterMinMs, path)
+	}
+
 	c := Client{
 		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
 		GoogleIP:                    googleIP,
@@ -419,6 +431,8 @@ func LoadClient(path string) (*Client, error) {
 		CoalesceMaxMs:               coalesceMax,
 		IdleSlotsPerBucket:          f.IdleSlotsPerBucket,
 		MaxGlobalWorkers:            f.MaxGlobalWorkers,
+		JitterMinMs:                 f.JitterMinMs,
+		JitterMaxMs:                 f.JitterMaxMs,
 	}
 	return &c, nil
 }
