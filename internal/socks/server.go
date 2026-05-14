@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
 	"github.com/things-go/go-socks5"
@@ -42,9 +43,143 @@ func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, f
 			}
 			return NewVirtualConn(s), nil
 		}),
-		socks5.WithAssociateHandle(func(_ context.Context, w io.Writer, _ *socks5.Request) error {
-			_ = socks5.SendReply(w, statute.RepCommandNotSupported, nil)
-			return fmt.Errorf("UDP associate not supported")
+		socks5.WithAssociateHandle(func(ctx context.Context, w io.Writer, req *socks5.Request) error {
+			// SOCKS5 UDP ASSOCIATE
+			// Bind to an ephemeral port on the same IP as the SOCKS listener (or 127.0.0.1 if unspecified)
+			listenIP := net.ParseIP(listenAddr)
+			if listenIP == nil {
+				host, _, err := net.SplitHostPort(listenAddr)
+				if err == nil {
+					listenIP = net.ParseIP(host)
+				}
+			}
+			if listenIP == nil || listenIP.IsUnspecified() {
+				listenIP = net.ParseIP("127.0.0.1")
+			}
+			udpAddr := &net.UDPAddr{IP: listenIP, Port: 0}
+			udpConn, err := net.ListenUDP("udp", udpAddr)
+			if err != nil {
+				_ = socks5.SendReply(w, statute.RepServerFailure, nil)
+				return fmt.Errorf("failed to bind UDP listener: %w", err)
+			}
+			defer udpConn.Close()
+
+			bndAddr := udpConn.LocalAddr().(*net.UDPAddr)
+
+			// Tell the client where to send UDP datagrams
+			var atyp byte
+			if bndAddr.IP.To4() != nil {
+				atyp = statute.ATYPIPv4
+			} else {
+				atyp = statute.ATYPIPv6
+			}
+
+			// Let's implement net.Addr to pass to SendReply
+			var addr net.Addr = &udpAddrWrapper{
+				ip:   bndAddr.IP,
+				port: bndAddr.Port,
+				atyp: atyp,
+			}
+
+			if err := socks5.SendReply(w, statute.RepSuccess, addr); err != nil {
+				return fmt.Errorf("failed to send UDP associate reply: %w", err)
+			}
+
+			// We need a session to tunnel the UDP traffic. We use the req.DestAddr.String() as a placeholder target.
+			// Actually, SOCKS5 UDP ASSOCIATE doesn't need a single target, packets dictate their own destination.
+			// The original TCP request DestAddr is often all zeros.
+			target := req.DestAddr.String()
+			if target == "" || target == "0.0.0.0:0" || target == "[::]:0" {
+				target = "udp_associate"
+			}
+			s := factory(target)
+			if debugTiming {
+				log.Printf("[socks] new UDP session %x", s.ID[:4])
+			}
+			defer func() {
+				s.CloseRx()
+				s.RequestClose()
+			}()
+
+			errCh := make(chan error, 3)
+
+			var clientUDPAddr *net.UDPAddr
+			var addrMu sync.Mutex
+
+			// Client -> UDP listener -> Tunnel
+			go func() {
+				buf := make([]byte, 65535)
+				for {
+					n, clientAddr, err := udpConn.ReadFromUDP(buf)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					addrMu.Lock()
+					if clientUDPAddr == nil || clientUDPAddr.String() != clientAddr.String() {
+						clientUDPAddr = clientAddr
+					}
+					addrMu.Unlock()
+
+					// Strip SOCKS5 UDP header (RSV(2), FRAG(1))
+					if n < 3 {
+						continue
+					}
+					frag := buf[2]
+					if frag != 0 {
+						// Fragmentation not supported
+						continue
+					}
+					// Send everything from ATYP onwards.
+					// We must copy the buffer because EnqueueUDP takes ownership or might delay sending.
+					payload := make([]byte, n-3)
+					copy(payload, buf[3:n])
+					s.EnqueueUDP(payload)
+				}
+			}()
+
+			// Tunnel -> UDP listener -> Client
+			go func() {
+				for datagram := range s.RxUDPChan {
+					addrMu.Lock()
+					dstAddr := clientUDPAddr
+					addrMu.Unlock()
+
+					if dstAddr == nil {
+						// Drop if we don't know where the client is yet
+						continue
+					}
+
+					// Prepend SOCKS5 UDP header (RSV=0x00 0x00, FRAG=0x00)
+					msg := make([]byte, 3+len(datagram))
+					msg[0] = 0
+					msg[1] = 0
+					msg[2] = 0
+					copy(msg[3:], datagram)
+
+					_, err := udpConn.WriteToUDP(msg, dstAddr)
+					if err != nil {
+						errCh <- err
+						return
+					}
+				}
+				errCh <- nil
+			}()
+
+			// Keep the TCP control connection open until EOF or an error occurs on UDP
+			// SOCKS5 client will keep this TCP connection open. We block here.
+			// The original TCP request's stream needs to be read to block and detect disconnects.
+			go func() {
+				// Actually we can read from the context or the underlying conn if available.
+				// io.Writer `w` in WithAssociateHandle is the same underlying conn which is io.ReadWriter.
+				if rw, ok := w.(io.Reader); ok {
+					io.Copy(io.Discard, rw)
+				}
+				errCh <- nil
+			}()
+
+			err = <-errCh
+			return err
 		}),
 		socks5.WithResolver(noopResolver{}),
 	}
@@ -85,6 +220,15 @@ func (l *noDelayListener) Accept() (net.Conn, error) {
 	setQuickAck(c)
 	return c, nil
 }
+
+type udpAddrWrapper struct {
+	ip   net.IP
+	port int
+	atyp byte
+}
+
+func (a *udpAddrWrapper) Network() string { return "udp" }
+func (a *udpAddrWrapper) String() string  { return fmt.Sprintf("%s:%d", a.ip.String(), a.port) }
 
 // noopResolver is a SOCKS5 name resolver that returns the host string verbatim
 // (no DNS lookup). Combined with socks5h:// clients, this keeps DNS off the

@@ -138,6 +138,7 @@ type Server struct {
 	txReady       map[[frame.SessionIDLen]byte]struct{}                // sessions with pending TX frames
 	firstReply    map[[frame.SessionIDLen]byte]struct{}                // sessions whose first downstream batch hasn't been sent yet
 	upstreams     map[[frame.SessionIDLen]byte]net.Conn                // upstream conn per session, kept so GC can force-close
+	udpUpstreams  map[[frame.SessionIDLen]byte]*net.UDPConn
 	lastActivity  map[[frame.SessionIDLen]byte]time.Time               // last time the client sent a frame for this session
 	dialFail      map[string]time.Time
 	pendingRSTs   map[[frame.ClientIDLen]byte][]*frame.Frame // RSTs queued per requesting client
@@ -190,6 +191,7 @@ func New(cfg Config) (*Server, error) {
 		txReady:       make(map[[frame.SessionIDLen]byte]struct{}),
 		firstReply:    make(map[[frame.SessionIDLen]byte]struct{}),
 		upstreams:     make(map[[frame.SessionIDLen]byte]net.Conn),
+		udpUpstreams:  make(map[[frame.SessionIDLen]byte]*net.UDPConn),
 		lastActivity:  make(map[[frame.SessionIDLen]byte]time.Time),
 		dialFail:      make(map[string]time.Time),
 		pendingRSTs:   make(map[[frame.ClientIDLen]byte][]*frame.Frame),
@@ -456,7 +458,16 @@ func (s *Server) routeIncoming(f *frame.Frame, owner [frame.ClientIDLen]byte) {
 	}
 
 	if !exists {
-		if !f.HasFlag(frame.FlagSYN) {
+		// If it's a UDP frame, we can auto-create the session without a SYN
+		// since UDP is connectionless.
+		if f.HasFlag(frame.FlagUDP) {
+			var err error
+			sess, err = s.openUDPSession(f.SessionID, owner)
+			if err != nil {
+				log.Printf("[exit] failed to open UDP session %x: %v", f.SessionID[:4], err)
+				return
+			}
+		} else if !f.HasFlag(frame.FlagSYN) {
 			if protocol.IsProbePayload(f.Payload) {
 				s.queueVersionResponse(owner, f.SessionID)
 				return
@@ -465,23 +476,36 @@ func (s *Server) routeIncoming(f *frame.Frame, owner [frame.ClientIDLen]byte) {
 			s.queueRST(owner, f.SessionID)
 			s.stats.rstSent.Add(1)
 			return
+		} else {
+			if s.isDialSuppressed(f.Target) {
+				log.Printf("[exit] dial suppressed for %s (recent failure backoff); sending RST", f.Target)
+				s.queueRST(owner, f.SessionID)
+				s.stats.rstSent.Add(1)
+				return
+			}
+			var err error
+			sess, err = s.openSession(f.SessionID, f.Target, owner)
+			if err != nil {
+				s.recordDialFailure(f.Target, err)
+				s.stats.dialsFail.Add(1)
+				log.Printf("[exit] dial %s: %v", f.Target, err)
+				return
+			}
+			s.stats.dialsOK.Add(1)
+			s.clearDialFailure(f.Target)
 		}
-		if s.isDialSuppressed(f.Target) {
-			log.Printf("[exit] dial suppressed for %s (recent failure backoff); sending RST", f.Target)
-			s.queueRST(owner, f.SessionID)
-			s.stats.rstSent.Add(1)
-			return
+	} else if f.HasFlag(frame.FlagUDP) {
+		s.mu.Lock()
+		udpConn := s.udpUpstreams[f.SessionID]
+		s.mu.Unlock()
+		if udpConn == nil {
+			// If session was created via TCP but now we get a UDP frame, we need to bind the UDP socket.
+			// SOCKS5 UDP ASSOCIATE starts a TCP session first.
+			if err := s.bindUDPSocket(sess, owner); err != nil {
+				log.Printf("[exit] failed to bind UDP socket for session %x: %v", f.SessionID[:4], err)
+				// don't drop the TCP session, just can't route this frame
+			}
 		}
-		var err error
-		sess, err = s.openSession(f.SessionID, f.Target, owner)
-		if err != nil {
-			s.recordDialFailure(f.Target, err)
-			s.stats.dialsFail.Add(1)
-			log.Printf("[exit] dial %s: %v", f.Target, err)
-			return
-		}
-		s.stats.dialsOK.Add(1)
-		s.clearDialFailure(f.Target)
 	}
 	sess.ProcessRx(f)
 	// Touch activity AFTER ProcessRx so a successful client→server frame
@@ -491,6 +515,141 @@ func (s *Server) routeIncoming(f *frame.Frame, owner [frame.ClientIDLen]byte) {
 		s.lastActivity[f.SessionID] = time.Now()
 	}
 	s.mu.Unlock()
+}
+
+// bindUDPSocket creates a UDP socket for an existing session and starts the proxy loop
+func (s *Server) bindUDPSocket(sess *session.Session, owner [frame.ClientIDLen]byte) error {
+	s.mu.Lock()
+	if s.udpUpstreams[sess.ID] != nil {
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.udpUpstreams[sess.ID] = udpConn
+	s.mu.Unlock()
+
+	// UDP upstream -> tunnel
+	go func() {
+		defer udpConn.Close()
+		buf := make([]byte, 65535)
+		for {
+			n, raddr, err := udpConn.ReadFromUDP(buf)
+			if err != nil {
+				return // socket closed or error
+			}
+
+			// Build ATYP + Addr + Port + Data
+			var atyp byte
+			var addrBytes []byte
+			if raddr.IP.To4() != nil {
+				atyp = 1 // ATYPIPv4
+				addrBytes = raddr.IP.To4()
+			} else {
+				atyp = 4 // ATYPIPv6
+				addrBytes = raddr.IP.To16()
+			}
+
+			// atyp(1) + addr + port(2) + payload
+			headerLen := 1 + len(addrBytes) + 2
+			payload := make([]byte, headerLen+n)
+			payload[0] = atyp
+			copy(payload[1:], addrBytes)
+			payload[1+len(addrBytes)] = byte(raddr.Port >> 8)
+			payload[1+len(addrBytes)+1] = byte(raddr.Port & 0xff)
+			copy(payload[headerLen:], buf[:n])
+
+			sess.EnqueueUDP(payload)
+		}
+	}()
+
+	// tunnel -> UDP upstream
+	go func() {
+		defer udpConn.Close()
+		for datagram := range sess.RxUDPChan {
+			if len(datagram) < 1 {
+				continue
+			}
+			atyp := datagram[0]
+			var ip net.IP
+			var port int
+			var dataIdx int
+
+			switch atyp {
+			case 1: // IPv4
+				if len(datagram) < 1+4+2 {
+					continue
+				}
+				ip = net.IP(datagram[1:5])
+				port = int(datagram[5])<<8 | int(datagram[6])
+				dataIdx = 7
+			case 3: // Domain name
+				if len(datagram) < 2 {
+					continue
+				}
+				domainLen := int(datagram[1])
+				if len(datagram) < 2+domainLen+2 {
+					continue
+				}
+				domain := string(datagram[2 : 2+domainLen])
+				// For simplicity, resolve here. SOCKS proxy can optionally resolve.
+				ips, err := net.LookupIP(domain)
+				if err != nil || len(ips) == 0 {
+					continue
+				}
+				ip = ips[0]
+				port = int(datagram[2+domainLen])<<8 | int(datagram[2+domainLen+1])
+				dataIdx = 2 + domainLen + 2
+			case 4: // IPv6
+				if len(datagram) < 1+16+2 {
+					continue
+				}
+				ip = net.IP(datagram[1:17])
+				port = int(datagram[17])<<8 | int(datagram[18])
+				dataIdx = 19
+			default:
+				continue
+			}
+
+			dstAddr := &net.UDPAddr{IP: ip, Port: port}
+			_, _ = udpConn.WriteToUDP(datagram[dataIdx:], dstAddr)
+		}
+	}()
+
+	return nil
+}
+
+// openUDPSession creates a new session specifically for UDP
+func (s *Server) openUDPSession(id [frame.SessionIDLen]byte, owner [frame.ClientIDLen]byte) (*session.Session, error) {
+	sess := session.New(id, "udp_associate", false)
+	sess.OnTx = func() {
+		s.mu.Lock()
+		s.txReady[id] = struct{}{}
+		s.mu.Unlock()
+		s.kick(owner)
+	}
+
+	s.mu.Lock()
+	s.sessions[id] = sess
+	s.sessionOwners[id] = owner
+	s.firstReply[id] = struct{}{}
+	s.lastActivity[id] = time.Now()
+	s.mu.Unlock()
+	s.stats.sessionsOpen.Add(1)
+
+	log.Printf("[exit] new UDP session %x owner=%x", id[:4], owner[:4])
+
+	if err := s.bindUDPSocket(sess, owner); err != nil {
+		return nil, err
+	}
+
+	return sess, nil
 }
 
 // queueRST enqueues a RST frame for the given session to be delivered to
@@ -736,7 +895,14 @@ func (s *Server) gcDoneSessions() {
 			delete(s.sessionOwners, id)
 			delete(s.txReady, id)
 			delete(s.firstReply, id)
+		if conn, ok := s.upstreams[id]; ok && conn != nil {
+			_ = conn.Close()
+		}
 			delete(s.upstreams, id)
+		if uconn, ok := s.udpUpstreams[id]; ok && uconn != nil {
+			_ = uconn.Close()
+		}
+		delete(s.udpUpstreams, id)
 			delete(s.lastActivity, id)
 			s.stats.sessionsClose.Add(1)
 		}

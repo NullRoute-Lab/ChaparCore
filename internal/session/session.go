@@ -58,7 +58,11 @@ type Session struct {
 	firstQueuedAt time.Time // timestamp of the oldest frame waiting to be sent
 	rxClosed      bool      // RxChan has been closed (peer FIN received)
 
-	RxChan chan []byte
+	RxChan    chan []byte
+	RxUDPChan chan []byte
+
+	// txUdpBuf holds UDP datagrams waiting to be sent
+	txUdpBuf [][]byte
 
 	// OnTx is invoked when EnqueueTx adds data and when closeReq transitions
 	// true. The carrier sets it to wake its long-poll loop.
@@ -82,6 +86,7 @@ func New(id [frame.SessionIDLen]byte, target string, needsSYN bool) *Session {
 		Target:    target,
 		rxQueue:   make(map[uint64]*frame.Frame),
 		RxChan:    make(chan []byte, 1024),
+		RxUDPChan: make(chan []byte, 100),
 		synNeeded: needsSYN,
 		rxInbox:   make(chan *frame.Frame, rxInboxCap),
 		rxDone:    make(chan struct{}),
@@ -118,8 +123,12 @@ func (s *Session) rxLoop() {
 	for {
 		select {
 		case f := <-s.rxInbox:
-			if s.deliverRx(f) {
-				return
+			if f.HasFlag(frame.FlagUDP) {
+				s.deliverRxUDP(f)
+			} else {
+				if s.deliverRx(f) {
+					return
+				}
 			}
 		case <-s.rxDone:
 			return
@@ -129,6 +138,28 @@ func (s *Session) rxLoop() {
 
 // EnqueueTx appends bytes to the session's tx buffer. Blocks while the buffer
 // exceeds TxBufHighWater. Safe to call concurrently with DrainTx.
+func (s *Session) EnqueueUDP(datagram []byte) {
+	s.mu.Lock()
+	// High watermark for UDP queue to prevent unbounded growth
+	if len(s.txUdpBuf) > 1000 && !s.closeReq {
+		s.mu.Unlock()
+		return // drop UDP packet on buffer overflow (UDP is lossy)
+	}
+	if s.closeReq {
+		s.mu.Unlock()
+		return
+	}
+	s.txUdpBuf = append(s.txUdpBuf, datagram)
+	if s.firstQueuedAt.IsZero() {
+		s.firstQueuedAt = time.Now()
+	}
+	cb := s.OnTx
+	s.mu.Unlock()
+	if cb != nil {
+		cb()
+	}
+}
+
 func (s *Session) EnqueueTx(data []byte) {
 	s.mu.Lock()
 	for len(s.txBuf) > TxBufHighWater && !s.closeReq {
@@ -201,7 +232,7 @@ func (s *Session) CloseRx() {
 func (s *Session) HasPendingTx() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.synNeeded || len(s.txBuf) > 0 || (s.closeReq && !s.finSent)
+	return s.synNeeded || len(s.txBuf) > 0 || len(s.txUdpBuf) > 0 || (s.closeReq && !s.finSent)
 }
 
 // HasPendingSYN reports whether the next drain will emit a SYN frame.
@@ -255,7 +286,7 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.synNeeded && len(s.txBuf) == 0 && !(s.closeReq && !s.finSent) {
+	if !s.synNeeded && len(s.txBuf) == 0 && len(s.txUdpBuf) == 0 && !(s.closeReq && !s.finSent) {
 		return nil
 	}
 
@@ -273,6 +304,7 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 		// bounded by ceil(len(txBuf)/maxPayload).
 		estFrames += (len(s.txBuf) + maxPayload - 1) / maxPayload
 	}
+	estFrames += len(s.txUdpBuf)
 	if s.closeReq && !s.finSent {
 		estFrames++
 	}
@@ -324,6 +356,29 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 		frames = append(frames, f)
 	}
 
+	// UDP datagrams
+	for len(s.txUdpBuf) > 0 && canAppend() {
+		datagram := s.txUdpBuf[0]
+		n := len(datagram)
+		if n > maxPayload {
+			// Datagram too large for frame, drop it.
+			s.txUdpBuf = s.txUdpBuf[1:]
+			continue
+		}
+		f := &frame.Frame{
+			SessionID: s.ID,
+			Seq:       s.txSeq,
+			Flags:     frame.FlagUDP,
+			Payload:   datagram, // zero-copy
+		}
+		s.txSeq++
+		s.txUdpBuf = s.txUdpBuf[1:]
+		frames = append(frames, f)
+	}
+	if len(s.txUdpBuf) == 0 {
+		s.txUdpBuf = nil
+	}
+
 	// When the buffer is fully drained, nil it so the backing array can be
 	// GC'd. txBuf advances via txBuf[n:] slicing, which keeps the original
 	// large allocation alive even after all data is consumed. Niling releases
@@ -347,7 +402,7 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 	}
 
 	// If everything was drained, clear the queue timestamp.
-	if !s.synNeeded && len(s.txBuf) == 0 && !(s.closeReq && !s.finSent) {
+	if !s.synNeeded && len(s.txBuf) == 0 && len(s.txUdpBuf) == 0 && !(s.closeReq && !s.finSent) {
 		s.firstQueuedAt = time.Time{}
 	}
 
@@ -393,6 +448,21 @@ func (s *Session) ProcessRx(f *frame.Frame) {
 // deliverRx performs in-order reassembly and delivers payloads to RxChan.
 // Called exclusively by rxLoop. Returns true when a FIN frame is processed
 // and the session's rx side is done.
+func (s *Session) deliverRxUDP(f *frame.Frame) {
+	if len(f.Payload) == 0 {
+		return
+	}
+	// UDP frames are independent and discrete, so they are not subject to RX ordering or buffering.
+	// But we still need to respect sequence numbers to avoid replay attacks?
+	// Actually, SOCKS5 UDP associates just tunnel packets.
+	select {
+	case s.RxUDPChan <- f.Payload:
+	case <-s.rxDone:
+	default:
+		// drop packet on overflow
+	}
+}
+
 func (s *Session) deliverRx(f *frame.Frame) bool {
 	s.mu.Lock()
 	if s.rxClosed {

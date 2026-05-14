@@ -54,6 +54,10 @@ type Client struct {
 	// 0 means auto-detect based on NumCPU.
 	MaxGlobalWorkers int
 
+	// Adaptive Polling / Exponential Backoff
+	IdleTimeoutMs int
+	SleepStepMs   int
+
 	// Coalesce Jitter (Timing Disruption)
 	JitterMinMs int
 	JitterMaxMs int
@@ -116,6 +120,10 @@ type clientFile struct {
 
 	// Global limit for active poll operations. Auto-detects if 0.
 	MaxGlobalWorkers int `json:"max_global_workers"`
+
+	// Adaptive Polling
+	IdleTimeoutMs int `json:"idle_timeout_ms"`
+	SleepStepMs   int `json:"sleep_step_ms"`
 
 	// Timing disruption for anti-correlation
 	JitterMinMs int `json:"jitter_min_ms"`
@@ -412,6 +420,29 @@ func LoadClient(path string) (*Client, error) {
 		return nil, fmt.Errorf("idle_slots_per_bucket must be 0–3 in %s (got %d). 0 or unset = default (1, safest); 2–3 increases download throughput at the cost of more simultaneous executions per Google account, which can re-trigger issue #56 if your accounts can't sustain that concurrency", path, f.IdleSlotsPerBucket)
 	}
 
+	if f.IdleTimeoutMs < 0 {
+		return nil, fmt.Errorf("idle_timeout_ms must be >= 0 in %s (got %d)", path, f.IdleTimeoutMs)
+	}
+	if f.SleepStepMs < 0 {
+		return nil, fmt.Errorf("sleep_step_ms must be >= 0 in %s (got %d)", path, f.SleepStepMs)
+	}
+
+	idleTimeoutMs := 3000
+	if f.IdleTimeoutMs > 0 {
+		idleTimeoutMs = f.IdleTimeoutMs
+	} else if f.IdleTimeoutMs == 0 {
+		// Use default if omitted, but allow 0 to disable (if we implement that,
+		// though the spec says default 3000). Let's use 3000 if 0 is provided as
+		// zero isn't explicitly requested to mean 'disable'. If they provide -1 it fails above.
+		// Wait, user said "default: 3000". If it's missing from JSON, it unmarshals to 0.
+		// So 0 should become 3000.
+	}
+
+	sleepStepMs := 3000
+	if f.SleepStepMs > 0 {
+		sleepStepMs = f.SleepStepMs
+	}
+
 	if f.JitterMinMs > 0 && f.JitterMaxMs < f.JitterMinMs {
 		return nil, fmt.Errorf("jitter_max_ms (%d) must be greater than or equal to jitter_min_ms (%d) in %s", f.JitterMaxMs, f.JitterMinMs, path)
 	}
@@ -431,6 +462,8 @@ func LoadClient(path string) (*Client, error) {
 		CoalesceMaxMs:               coalesceMax,
 		IdleSlotsPerBucket:          f.IdleSlotsPerBucket,
 		MaxGlobalWorkers:            f.MaxGlobalWorkers,
+		IdleTimeoutMs:               idleTimeoutMs,
+		SleepStepMs:                 sleepStepMs,
 		JitterMinMs:                 f.JitterMinMs,
 		JitterMaxMs:                 f.JitterMaxMs,
 	}

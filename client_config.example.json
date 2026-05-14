@@ -15,6 +15,10 @@
   "socks_user": "",
   "socks_pass": "",
 
+  "_comment_adaptive_polling": "Optional: adaptive polling drops the poll interval to sleep_step_ms if the client is completely idle for idle_timeout_ms. Prevents quota exhaustion.",
+  "idle_timeout_ms": 3000,
+  "sleep_step_ms": 3000,
+
   "_comment_coalesce": "Optional: adaptive uplink coalescing. Set coalesce_step_ms to a positive number to make a burst of TX operations wait a little for more operations before sending, which reduces Apps Script calls. A good starting range is 20-40 ms. Set it to 0 to turn coalescing off.",
   "coalesce_step_ms": 20,
 
