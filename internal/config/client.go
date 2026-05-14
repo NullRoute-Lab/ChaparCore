@@ -503,6 +503,7 @@ func LoadClient(path string) (*Client, error) {
 		JitterMaxMs:                 f.JitterMaxMs,
 		MaxActiveSessions:           maxActiveSessions,
 		FlushSizeKB:                 flushSizeKB,
+		IdleSessionTimeoutMs:        idleSessionTimeoutMs,
 	}
 	return &c, nil
 }

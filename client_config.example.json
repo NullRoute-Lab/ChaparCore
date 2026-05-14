@@ -32,9 +32,12 @@
   "_comment_workers": "Optional: global limit for concurrent Zstd and AES operations. 0 = auto-scale based on runtime.NumCPU() * 8.",
   "max_global_workers": 0,
 
-  "_comment_max_active_sessions": "Optional: adaptive connection storm protection. Limits concurrent active SOCKS5 sessions. 0 = auto-detect (len(script_keys) * 40).",
+  "_comment_max_active_sessions": "Optional: Max concurrent sessions. 0 = auto scale. -1 = infinite / disable protection.",
   "max_active_sessions": 0,
 
-  "_comment_flush_size_kb": "Optional: threshold-based flushing. Triggers an immediate burst flush bypassing the coalesce timer when pending bytes reach this size. 0 = default (128).",
-  "flush_size_kb": 128
+  "_comment_flush_size_kb": "Optional: Threshold in KB to immediately flush the TX buffer. Default: 128.",
+  "flush_size_kb": 128,
+
+  "_comment_idle_session_timeout_ms": "Optional: Time in milliseconds of zero RX/TX activity before an idle session is forcefully reaped. Default: 60000.",
+  "idle_session_timeout_ms": 60000
 }
