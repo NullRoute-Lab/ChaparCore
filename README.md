@@ -454,6 +454,8 @@ What the client does for you automatically:
 | `socks_pass` | *(optional)* | SOCKS5 password paired with `socks_user`. |
 | `coalesce_step_ms` | `0` (off) | Adaptive uplink coalescing. Set it to a positive number to make the first kick of a burst of TX operations wait a little for more operations; each new operation resets the timer. This trades a bit of latency for fewer Apps Script calls. A good starting range is 20-40 ms. Set it to `0` to turn coalescing off. The internal safety cap is derived automatically from this value. |
 | `idle_slots_per_bucket` | `1` | Download-throughput tuning. The carrier holds this many concurrent idle long-polls open per account bucket to receive downstream pushes. Default `1` is the safe baseline established by issue #56's fix. Raise to `2` if each Google account has 2+ deployments — this may increase download throughput; leave at `1` if each account has only one deployment (raising it would put 2 simultaneous polls on a single deployment URL, which is more likely to trip Apps Script's per-account concurrency cap). Max `3`; values above are rejected. |
+| `max_active_sessions` | `0` | Adaptive connection storm protection. Limits the total number of concurrent active SOCKS5 sessions. When the limit is reached, excess connections are gracefully rejected. If set to `0`, the limit defaults to `len(script_keys) * 40`. |
+| `flush_size_kb` | `128` | Threshold-based flushing. The carrier aggregates pending outgoing payload bytes. Once this size is reached (in kilobytes), the payload is dispatched immediately, bypassing the coalesce timer and preventing buffer congestion under heavy load. If set to `0`, defaults to `128`. |
 
 ### Server (`server_config.json`)
 
