@@ -109,6 +109,9 @@ type Config struct {
 	// Timing disruption for anti-correlation
 	JitterMin time.Duration
 	JitterMax time.Duration
+
+	// FlushSizeKB triggers an immediate burst flush when pending bytes reach this size.
+	FlushSizeKB int
 }
 
 type relayEndpoint struct {
@@ -220,6 +223,12 @@ type Client struct {
 
 	// Global activity tracking for adaptive polling
 	lastActivity atomic.Int64 // UnixNano
+
+	// Flush threshold bytes for immediate dispatch
+	flushSizeBytes int
+
+	// Atomic counter for pending bytes to trigger flush
+	pendingTxBytes atomic.Int64
 }
 
 // clientStats holds atomic counters surfaced periodically by statsLoop.
@@ -328,6 +337,7 @@ func New(cfg Config) (*Client, error) {
 		wake:               newWaker(),
 		coalesceStep:       cfg.CoalesceStep,
 		coalesceMax:        cfg.CoalesceMax,
+		flushSizeBytes:     cfg.FlushSizeKB * 1024,
 	}
 
 	cClient.lastActivity.Store(time.Now().UnixNano())
@@ -355,11 +365,22 @@ func (c *Client) NewSession(target string) *session.Session {
 		panic(fmt.Errorf("crypto/rand: %w", err))
 	}
 	s := session.New(id, target, true)
-	s.OnTx = func() {
-		c.mu.Lock()
-		c.txReady[id] = struct{}{}
-		c.mu.Unlock()
-		c.kick()
+	s.OnTx = func(bytesAdded int, urgent bool) {
+		if bytesAdded != 0 {
+			totalPending := c.pendingTxBytes.Add(int64(bytesAdded))
+			if bytesAdded > 0 && c.flushSizeBytes > 0 && totalPending >= int64(c.flushSizeBytes) {
+				urgent = true
+			}
+		}
+
+		// Only mark ready and kick if this was a positive add or urgent.
+		// Negative bytesAdded means a drop, we just needed to decrement the counter.
+		if bytesAdded > 0 || urgent {
+			c.mu.Lock()
+			c.txReady[id] = struct{}{}
+			c.mu.Unlock()
+			c.kick(urgent)
+		}
 	}
 	c.mu.Lock()
 	c.sessions[id] = s
@@ -369,7 +390,7 @@ func (c *Client) NewSession(target string) *session.Session {
 	if c.debugTiming {
 		c.debugStarts.Store(id, time.Now())
 	}
-	c.kick()
+	c.kick(true) // SYNs are inherently urgent (zero-delay connection setup)
 	return s
 }
 
@@ -691,7 +712,7 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 			if errHard {
 				c.markEndpointHardFailure(endpointIdx)
 			} else {
-				c.markEndpointFailure(endpointIdx)
+				c.markEndpointDecoyPenalty(endpointIdx)
 			}
 			if attempt < maxAttempts {
 				log.Printf("[carrier] relay returned non-batch payload via %s (attempt %d/%d); retrying alternate script", shortScriptKey(scriptURL), attempt, maxAttempts)
@@ -707,7 +728,7 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 
 		_, rxFrames, decodeErr := frame.DecodeBatch(c.aead, respBody)
 		if decodeErr != nil {
-			c.markEndpointFailure(endpointIdx)
+			c.markEndpointDecoyPenalty(endpointIdx)
 			if attempt < maxAttempts {
 				log.Printf("[carrier] relay response was invalid via %s (attempt %d/%d): %v; retrying alternate script", shortScriptKey(scriptURL), attempt, maxAttempts, decodeErr)
 				continue
@@ -851,9 +872,40 @@ func (c *Client) markEndpoint403(endpointIdx int) {
 	c.markEndpointFailureWith(endpointIdx, 5)
 }
 
+// markEndpointDecoyPenalty applies a strict 15-second blacklist penalty for HTML decoy/error pages
+// or 429s to break the immediate retry loops that burn Google Apps Script quotas.
+func (c *Client) markEndpointDecoyPenalty(endpointIdx int) {
+	c.endpointMu.Lock()
+	if endpointIdx < 0 || endpointIdx >= len(c.endpoints) {
+		c.endpointMu.Unlock()
+		return
+	}
+	ep := &c.endpoints[endpointIdx]
+	wasHealthy := ep.failCount == 0
+
+	// Increment fail count but force at least a 15s penalty regardless of the ramp
+	ep.failCount++
+	ep.statsFail++
+	ttl := 15 * time.Second
+
+	// If the normal ramp would yield > 15s, use the larger value
+	rampTTL := endpointBlacklistTTL(ep.failCount)
+	if rampTTL > ttl {
+		ttl = rampTTL
+	}
+
+	ep.blacklistedTill = time.Now().Add(ttl)
+	url := ep.url
+	c.endpointMu.Unlock()
+
+	if wasHealthy {
+		log.Printf("[carrier] endpoint %s blacklisted for %s (HTML Decoy / Quota penalty)", shortScriptKey(url), ttl.Round(time.Second))
+	}
+}
+
 // markEndpoint429 handles HTTP 429 (rate-limited).
 func (c *Client) markEndpoint429(endpointIdx int) {
-	c.markQuotaExhausted(endpointIdx)
+	c.markEndpointDecoyPenalty(endpointIdx)
 }
 
 // markEndpointHardFailure is used when classifyRelayErrorBody identifies a quota
@@ -1003,6 +1055,16 @@ func (c *Client) drainAll() ([]*frame.Frame, [][frame.SessionIDLen]byte) {
 	for _, r := range refs {
 		drain(r.id, false)
 	}
+
+	// Calculate how many bytes we're removing from the pending queue
+	var bytesDrained int
+	for _, f := range out {
+		bytesDrained += len(f.Payload)
+	}
+	if bytesDrained > 0 {
+		c.pendingTxBytes.Add(int64(-bytesDrained))
+	}
+
 	return out, drainedIDs
 }
 
@@ -1098,10 +1160,20 @@ func (c *Client) releaseIdlePollSlot() {
 // kicks reset the step timer (capped at the hard deadline) so a steady
 // stream of arrivals does not delay the wake past coalesceMax. When step
 // is 0 the wake fires immediately as before.
-func (c *Client) kick() {
+//
+// If urgent is true, the coalesce timer is bypassed and the wake broadcasts
+// immediately. This is used for flush thresholds and protocol-aware bypass.
+func (c *Client) kick(urgent bool) {
 	c.lastActivity.Store(time.Now().UnixNano())
 
-	if c.coalesceStep <= 0 {
+	if c.coalesceStep <= 0 || urgent {
+		c.coalesceMu.Lock()
+		if c.coalesceTimer != nil {
+			c.coalesceTimer.Stop()
+			c.coalesceTimer = nil
+		}
+		c.coalesceMu.Unlock()
+
 		c.wake.Broadcast()
 		return
 	}

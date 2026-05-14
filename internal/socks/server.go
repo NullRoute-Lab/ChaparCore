@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
 	"github.com/things-go/go-socks5"
@@ -34,16 +35,39 @@ type SessionFactory func(target string) *session.Session
 // Blocks until ListenAndServe returns. Caller passes ctx for shutdown
 // signaling (the underlying go-socks5 library doesn't take a ctx, so this
 // just wires it through for parity with the rest of the codebase).
-func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, factory SessionFactory) error {
+func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, maxSessions int, factory SessionFactory) error {
+	var activeSessions atomic.Int32
+
 	opts := []socks5.Option{
 		socks5.WithDial(func(_ context.Context, _, addr string) (net.Conn, error) {
+			current := activeSessions.Add(1)
+			if current > int32(maxSessions) {
+				activeSessions.Add(-1)
+				return nil, fmt.Errorf("max active sessions reached (%d)", maxSessions)
+			}
 			s := factory(addr)
 			if debugTiming {
 				log.Printf("[socks] new session %x for %s", s.ID[:4], addr)
 			}
-			return NewVirtualConn(s), nil
+			conn := NewVirtualConn(s)
+			// Need to track when VirtualConn closes to decrement.
+			// Wrap VirtualConn to hook Close().
+			return &trackedConn{
+				Conn: conn,
+				onClose: func() {
+					activeSessions.Add(-1)
+				},
+			}, nil
 		}),
 		socks5.WithAssociateHandle(func(ctx context.Context, w io.Writer, req *socks5.Request) error {
+			current := activeSessions.Add(1)
+			if current > int32(maxSessions) {
+				activeSessions.Add(-1)
+				_ = socks5.SendReply(w, statute.RepServerFailure, nil)
+				return fmt.Errorf("max active sessions reached (%d)", maxSessions)
+			}
+			defer activeSessions.Add(-1)
+
 			// SOCKS5 UDP ASSOCIATE
 			// Bind to an ephemeral port on the same IP as the SOCKS listener (or 127.0.0.1 if unspecified)
 			listenIP := net.ParseIP(listenAddr)
@@ -53,11 +77,12 @@ func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, f
 					listenIP = net.ParseIP(host)
 				}
 			}
-			if listenIP == nil || listenIP.IsUnspecified() {
+			if listenIP == nil || listenIP.IsUnspecified() || listenIP.To4() == nil {
 				listenIP = net.ParseIP("127.0.0.1")
 			}
+			listenIP = listenIP.To4()
 			udpAddr := &net.UDPAddr{IP: listenIP, Port: 0}
-			udpConn, err := net.ListenUDP("udp", udpAddr)
+			udpConn, err := net.ListenUDP("udp4", udpAddr)
 			if err != nil {
 				_ = socks5.SendReply(w, statute.RepServerFailure, nil)
 				return fmt.Errorf("failed to bind UDP listener: %w", err)
@@ -134,7 +159,35 @@ func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, f
 					// We must copy the buffer because EnqueueUDP takes ownership or might delay sending.
 					payload := make([]byte, n-3)
 					copy(payload, buf[3:n])
-					s.EnqueueUDP(payload)
+
+					// Protocol-Aware Batching Bypass: check if destination port is 53 (DNS)
+					urgent := false
+					if len(payload) > 1 { // at least ATYP
+						atyp := payload[0]
+						var port int
+						switch atyp {
+						case statute.ATYPIPv4:
+							if len(payload) >= 1+4+2 {
+								port = int(payload[1+4])<<8 | int(payload[1+4+1])
+							}
+						case statute.ATYPIPv6:
+							if len(payload) >= 1+16+2 {
+								port = int(payload[1+16])<<8 | int(payload[1+16+1])
+							}
+						case statute.ATYPDomain:
+							if len(payload) >= 2 {
+								domainLen := int(payload[1])
+								if len(payload) >= 2+domainLen+2 {
+									port = int(payload[2+domainLen])<<8 | int(payload[2+domainLen+1])
+								}
+							}
+						}
+						if port == 53 {
+							urgent = true
+						}
+					}
+
+					s.EnqueueUDP(payload, urgent)
 				}
 			}()
 
@@ -191,7 +244,7 @@ func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, f
 		}))
 	}
 
-	ln, err := net.Listen("tcp", listenAddr)
+	ln, err := net.Listen("tcp4", listenAddr)
 	if err != nil {
 		return err
 	}
@@ -237,4 +290,15 @@ type noopResolver struct{}
 
 func (noopResolver) Resolve(ctx context.Context, _ string) (context.Context, net.IP, error) {
 	return ctx, nil, nil
+}
+
+type trackedConn struct {
+	net.Conn
+	onClose func()
+	once    sync.Once
+}
+
+func (c *trackedConn) Close() error {
+	c.once.Do(c.onClose)
+	return c.Conn.Close()
 }

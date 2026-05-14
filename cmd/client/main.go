@@ -215,7 +215,7 @@ func main() {
 		if cfg.SocksUser != "" {
 			log.Printf("[client] SOCKS5 auth enabled (RFC 1929 username/password required)")
 		}
-		if err := socks.Serve(ctx, cfg.ListenAddr, cfg.SocksUser, cfg.SocksPass, cfg.DebugTiming, factory); err != nil {
+		if err := socks.Serve(ctx, cfg.ListenAddr, cfg.SocksUser, cfg.SocksPass, cfg.DebugTiming, cfg.MaxActiveSessions, factory); err != nil {
 			log.Fatalf("socks: %v", err)
 		}
 	}()

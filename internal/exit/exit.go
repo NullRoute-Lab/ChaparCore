@@ -210,25 +210,42 @@ func New(cfg Config) (*Server, error) {
 // falls back to net.DialTimeout.
 func dialFunc(proxyAddr string) func(network, address string, timeout time.Duration) (net.Conn, error) {
 	if proxyAddr == "" {
-		return net.DialTimeout
+		return func(network, address string, timeout time.Duration) (net.Conn, error) {
+			// Enforce tcp4 network for ipv4 resolution bypass
+			if network == "tcp" {
+				network = "tcp4"
+			}
+			return net.DialTimeout(network, address, timeout)
+		}
 	}
 	forward := &net.Dialer{Timeout: 15 * time.Second}
 	d, err := proxy.SOCKS5("tcp", proxyAddr, nil, forward)
 	if err != nil {
 		// proxy.SOCKS5 only errors on bad auth config; with nil auth this never fires.
 		log.Printf("[exit] upstream_proxy: failed to build SOCKS5 dialer: %v — falling back to direct", err)
-		return net.DialTimeout
+		return func(network, address string, timeout time.Duration) (net.Conn, error) {
+			if network == "tcp" {
+				network = "tcp4"
+			}
+			return net.DialTimeout(network, address, timeout)
+		}
 	}
 	cd, ok := d.(proxy.ContextDialer)
 	if !ok {
-		return func(_, address string, _ time.Duration) (net.Conn, error) {
-			return d.Dial("tcp", address)
+		return func(network, address string, _ time.Duration) (net.Conn, error) {
+			if network == "tcp" {
+				network = "tcp4"
+			}
+			return d.Dial(network, address)
 		}
 	}
-	return func(_, address string, timeout time.Duration) (net.Conn, error) {
+	return func(network, address string, timeout time.Duration) (net.Conn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		return cd.DialContext(ctx, "tcp", address)
+		if network == "tcp" {
+			network = "tcp4"
+		}
+		return cd.DialContext(ctx, network, address)
 	}
 }
 
@@ -526,7 +543,7 @@ func (s *Server) bindUDPSocket(sess *session.Session, owner [frame.ClientIDLen]b
 	}
 	s.mu.Unlock()
 
-	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
 		return err
 	}
@@ -565,7 +582,8 @@ func (s *Server) bindUDPSocket(sess *session.Session, owner [frame.ClientIDLen]b
 			payload[1+len(addrBytes)+1] = byte(raddr.Port & 0xff)
 			copy(payload[headerLen:], buf[:n])
 
-			sess.EnqueueUDP(payload)
+			// Exit node always enqueues UDP with no urgency.
+			sess.EnqueueUDP(payload, false)
 		}
 	}()
 
@@ -628,7 +646,7 @@ func (s *Server) bindUDPSocket(sess *session.Session, owner [frame.ClientIDLen]b
 // openUDPSession creates a new session specifically for UDP
 func (s *Server) openUDPSession(id [frame.SessionIDLen]byte, owner [frame.ClientIDLen]byte) (*session.Session, error) {
 	sess := session.New(id, "udp_associate", false)
-	sess.OnTx = func() {
+	sess.OnTx = func(_ int, _ bool) {
 		s.mu.Lock()
 		s.txReady[id] = struct{}{}
 		s.mu.Unlock()
@@ -714,7 +732,7 @@ func (s *Server) openSession(id [frame.SessionIDLen]byte, target string, owner [
 	}
 	dialedAt := time.Now()
 	sess := session.New(id, target, false)
-	sess.OnTx = func() {
+	sess.OnTx = func(_ int, _ bool) {
 		s.mu.Lock()
 		s.txReady[id] = struct{}{}
 		s.mu.Unlock()
