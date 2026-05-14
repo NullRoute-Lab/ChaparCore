@@ -64,9 +64,11 @@ type Session struct {
 	// txUdpBuf holds UDP datagrams waiting to be sent
 	txUdpBuf [][]byte
 
-	// OnTx is invoked when EnqueueTx adds data and when closeReq transitions
+	// OnTx is invoked when EnqueueTx/EnqueueUDP adds data and when closeReq transitions
 	// true. The carrier sets it to wake its long-poll loop.
-	OnTx func()
+	// The argument is the number of payload bytes added (to track threshold flush).
+	// The urgent parameter forces an immediate flush, bypassing coalescing timers.
+	OnTx func(bytesAdded int, urgent bool)
 
 	// rxInbox is the per-session inbox for incoming frames. rxLoop drains it
 	// so poll workers are never blocked by a slow SOCKS consumer on one session
@@ -138,12 +140,19 @@ func (s *Session) rxLoop() {
 
 // EnqueueTx appends bytes to the session's tx buffer. Blocks while the buffer
 // exceeds TxBufHighWater. Safe to call concurrently with DrainTx.
-func (s *Session) EnqueueUDP(datagram []byte) {
+func (s *Session) EnqueueUDP(datagram []byte, urgent bool) {
 	s.mu.Lock()
 	// High watermark for UDP queue to prevent unbounded growth
 	if len(s.txUdpBuf) > 1000 && !s.closeReq {
 		s.mu.Unlock()
-		return // drop UDP packet on buffer overflow (UDP is lossy)
+		// We drop the packet, but we still need to signal the caller that we didn't add it.
+		// However, it's easier to just call cb(-len(datagram))? No, it wasn't added yet.
+		// So we just return. But wait, if we drop an OLD packet? We don't drop the old one,
+		// we just don't add the new one.
+		// Actually, wait, the previous code didn't drop the old one:
+		// `return // drop UDP packet on buffer overflow (UDP is lossy)`
+		// So the datagram is just rejected.
+		return
 	}
 	if s.closeReq {
 		s.mu.Unlock()
@@ -156,7 +165,7 @@ func (s *Session) EnqueueUDP(datagram []byte) {
 	cb := s.OnTx
 	s.mu.Unlock()
 	if cb != nil {
-		cb()
+		cb(len(datagram), urgent)
 	}
 }
 
@@ -176,7 +185,7 @@ func (s *Session) EnqueueTx(data []byte) {
 	cb := s.OnTx
 	s.mu.Unlock()
 	if cb != nil {
-		cb()
+		cb(len(data), false)
 	}
 }
 
@@ -198,7 +207,7 @@ func (s *Session) EnqueueInitialData(data []byte) {
 	cb := s.OnTx
 	s.mu.Unlock()
 	if cb != nil {
-		cb()
+		cb(len(data), false)
 	}
 }
 
@@ -214,7 +223,7 @@ func (s *Session) RequestClose() {
 	cb := s.OnTx
 	s.mu.Unlock()
 	if cb != nil {
-		cb()
+		cb(0, true) // closing is also urgent
 	}
 }
 
@@ -357,12 +366,14 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 	}
 
 	// UDP datagrams
+	var droppedBytes int
 	for len(s.txUdpBuf) > 0 && canAppend() {
 		datagram := s.txUdpBuf[0]
 		n := len(datagram)
 		if n > maxPayload {
 			// Datagram too large for frame, drop it.
 			s.txUdpBuf = s.txUdpBuf[1:]
+			droppedBytes += n
 			continue
 		}
 		f := &frame.Frame{
@@ -407,6 +418,17 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 	}
 
 	s.txCond.Broadcast() // wake any backpressured writers
+
+	if droppedBytes > 0 {
+		// Unlock to avoid deadlock, then call OnTx to decrement dropped bytes
+		cb := s.OnTx
+		s.mu.Unlock()
+		if cb != nil {
+			cb(-droppedBytes, false)
+		}
+		s.mu.Lock()
+	}
+
 	return frames
 }
 

@@ -61,6 +61,12 @@ type Client struct {
 	// Coalesce Jitter (Timing Disruption)
 	JitterMinMs int
 	JitterMaxMs int
+
+	// MaxActiveSessions limits the total number of concurrent active SOCKS5 sessions.
+	MaxActiveSessions int
+
+	// FlushSizeKB triggers an immediate burst flush when pending bytes reach this size.
+	FlushSizeKB int
 }
 
 // clientFile is the user-friendly client config format.
@@ -128,6 +134,12 @@ type clientFile struct {
 	// Timing disruption for anti-correlation
 	JitterMinMs int `json:"jitter_min_ms"`
 	JitterMaxMs int `json:"jitter_max_ms"`
+
+	// Adaptive connection storm protection
+	MaxActiveSessions int `json:"max_active_sessions"`
+
+	// Threshold flushing
+	FlushSizeKB int `json:"flush_size_kb"`
 }
 
 func firstNonEmpty(values ...string) string {
@@ -447,6 +459,16 @@ func LoadClient(path string) (*Client, error) {
 		return nil, fmt.Errorf("jitter_max_ms (%d) must be greater than or equal to jitter_min_ms (%d) in %s", f.JitterMaxMs, f.JitterMinMs, path)
 	}
 
+	maxActiveSessions := f.MaxActiveSessions
+	if maxActiveSessions <= 0 {
+		maxActiveSessions = len(scriptURLs) * 40
+	}
+
+	flushSizeKB := f.FlushSizeKB
+	if flushSizeKB <= 0 {
+		flushSizeKB = 128
+	}
+
 	c := Client{
 		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
 		GoogleIP:                    googleIP,
@@ -466,6 +488,8 @@ func LoadClient(path string) (*Client, error) {
 		SleepStepMs:                 sleepStepMs,
 		JitterMinMs:                 f.JitterMinMs,
 		JitterMaxMs:                 f.JitterMaxMs,
+		MaxActiveSessions:           maxActiveSessions,
+		FlushSizeKB:                 flushSizeKB,
 	}
 	return &c, nil
 }

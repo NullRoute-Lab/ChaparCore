@@ -435,7 +435,7 @@ func TestCarrier_KickCoalesceDisabled(t *testing.T) {
 
 	wakeCh := c.wake.C()
 	start := time.Now()
-	c.kick()
+	c.kick(false)
 	select {
 	case <-wakeCh:
 	case <-time.After(50 * time.Millisecond):
@@ -462,7 +462,7 @@ func TestCarrier_KickCoalesceDelaysSingleKick(t *testing.T) {
 
 	wakeCh := c.wake.C()
 	start := time.Now()
-	c.kick()
+	c.kick(false)
 	select {
 	case <-wakeCh:
 	case <-time.After(500 * time.Millisecond):
@@ -497,11 +497,11 @@ func TestCarrier_KickCoalesceResetsOnBurst(t *testing.T) {
 
 	// Kick three times spaced step/2 apart: each kick resets the timer, so
 	// the wake should fire ~step after the last kick (~2*step total).
-	c.kick()
+	c.kick(false)
 	time.Sleep(step / 2)
-	c.kick()
+	c.kick(false)
 	time.Sleep(step / 2)
-	c.kick()
+	c.kick(false)
 	lastKick := time.Now()
 
 	select {
@@ -553,13 +553,13 @@ func TestCarrier_KickCoalesceHardCap(t *testing.T) {
 		defer close(done)
 		ticker := time.NewTicker(step / 2)
 		defer ticker.Stop()
-		c.kick()
+		c.kick(false)
 		for {
 			select {
 			case <-stopKicking:
 				return
 			case <-ticker.C:
-				c.kick()
+				c.kick(false)
 			}
 		}
 	}()
