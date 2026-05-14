@@ -30,5 +30,11 @@
   "jitter_max_ms": 15,
 
   "_comment_workers": "Optional: global limit for concurrent Zstd and AES operations. 0 = auto-scale based on runtime.NumCPU() * 8.",
-  "max_global_workers": 0
+  "max_global_workers": 0,
+
+  "_comment_max_active_sessions": "Optional: adaptive connection storm protection. Limits concurrent active SOCKS5 sessions. 0 = auto-detect (len(script_keys) * 40).",
+  "max_active_sessions": 0,
+
+  "_comment_flush_size_kb": "Optional: threshold-based flushing. Triggers an immediate burst flush bypassing the coalesce timer when pending bytes reach this size. 0 = default (128).",
+  "flush_size_kb": 128
 }
