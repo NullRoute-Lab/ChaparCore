@@ -9,6 +9,7 @@ package session
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
@@ -76,6 +77,9 @@ type Session struct {
 	rxInbox  chan *frame.Frame
 	rxDone   chan struct{}
 	stopOnce sync.Once
+
+	// lastActivity tracks the timestamp of the last TX or RX payload (UnixNano)
+	lastActivity atomic.Int64
 }
 
 // New creates a session with a random ID is the caller's responsibility — pass
@@ -93,6 +97,7 @@ func New(id [frame.SessionIDLen]byte, target string, needsSYN bool) *Session {
 		rxInbox:   make(chan *frame.Frame, rxInboxCap),
 		rxDone:    make(chan struct{}),
 	}
+	s.lastActivity.Store(time.Now().UnixNano())
 	if needsSYN {
 		s.firstQueuedAt = time.Now()
 	}
@@ -141,6 +146,7 @@ func (s *Session) rxLoop() {
 // EnqueueTx appends bytes to the session's tx buffer. Blocks while the buffer
 // exceeds TxBufHighWater. Safe to call concurrently with DrainTx.
 func (s *Session) EnqueueUDP(datagram []byte, urgent bool) {
+	s.lastActivity.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	// High watermark for UDP queue to prevent unbounded growth
 	if len(s.txUdpBuf) > 1000 && !s.closeReq {
@@ -170,6 +176,7 @@ func (s *Session) EnqueueUDP(datagram []byte, urgent bool) {
 }
 
 func (s *Session) EnqueueTx(data []byte) {
+	s.lastActivity.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	for len(s.txBuf) > TxBufHighWater && !s.closeReq {
 		s.txCond.Wait()
@@ -192,6 +199,7 @@ func (s *Session) EnqueueTx(data []byte) {
 // EnqueueInitialData prepends data to the tx buffer if the SYN hasn't been sent
 // yet. Used by the connect_data optimization.
 func (s *Session) EnqueueInitialData(data []byte) {
+	s.lastActivity.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	if !s.synNeeded {
 		// Too late, SYN already sent. Just regular enqueue.
@@ -432,6 +440,11 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 	return frames
 }
 
+// IdleDuration returns the time elapsed since the last payload TX or RX activity.
+func (s *Session) IdleDuration() time.Duration {
+	return time.Since(time.Unix(0, s.lastActivity.Load()))
+}
+
 // ProcessRx enqueues f to the per-session rxLoop goroutine. The fast path is
 // non-blocking. If rxInbox is saturated (slow SOCKS consumer or large burst),
 // we wait up to rxInboxBlockTimeout to absorb the transient backpressure
@@ -440,6 +453,7 @@ func (s *Session) drainTx(maxPayload, maxFrames int) []*frame.Frame {
 // stall — the original kill-on-overflow behavior caused mid-stream session
 // drops under multi-user fan-out and brief GC pauses.
 func (s *Session) ProcessRx(f *frame.Frame) {
+	s.lastActivity.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	if s.rxClosed {
 		s.mu.Unlock()
@@ -486,6 +500,7 @@ func (s *Session) deliverRxUDP(f *frame.Frame) {
 }
 
 func (s *Session) deliverRx(f *frame.Frame) bool {
+	s.lastActivity.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	if s.rxClosed {
 		s.mu.Unlock()

@@ -38,10 +38,14 @@ type SessionFactory func(target string) *session.Session
 func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, maxSessions int, factory SessionFactory) error {
 	var activeSessions atomic.Int32
 
+	if maxSessions == -1 {
+		log.Printf("[socks] Warning: max_active_sessions is set to -1. Connection storm protection is DISABLED. Infinite sessions allowed.")
+	}
+
 	opts := []socks5.Option{
 		socks5.WithDial(func(_ context.Context, _, addr string) (net.Conn, error) {
 			current := activeSessions.Add(1)
-			if current > int32(maxSessions) {
+			if maxSessions != -1 && current > int32(maxSessions) {
 				activeSessions.Add(-1)
 				return nil, fmt.Errorf("max active sessions reached (%d)", maxSessions)
 			}
@@ -61,7 +65,7 @@ func Serve(_ context.Context, listenAddr, user, pass string, debugTiming bool, m
 		}),
 		socks5.WithAssociateHandle(func(ctx context.Context, w io.Writer, req *socks5.Request) error {
 			current := activeSessions.Add(1)
-			if current > int32(maxSessions) {
+			if maxSessions != -1 && current > int32(maxSessions) {
 				activeSessions.Add(-1)
 				_ = socks5.SendReply(w, statute.RepServerFailure, nil)
 				return fmt.Errorf("max active sessions reached (%d)", maxSessions)

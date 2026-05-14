@@ -112,6 +112,9 @@ type Config struct {
 
 	// FlushSizeKB triggers an immediate burst flush when pending bytes reach this size.
 	FlushSizeKB int
+
+	// IdleSessionTimeoutMs is the duration after which an inactive session is forcefully closed.
+	IdleSessionTimeoutMs int
 }
 
 type relayEndpoint struct {
@@ -1121,8 +1124,23 @@ func (c *Client) routeRx(f *frame.Frame) {
 func (c *Client) gcDoneSessions() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	timeoutDur := time.Duration(c.cfg.IdleSessionTimeoutMs) * time.Millisecond
+
 	for id, s := range c.sessions {
 		if s.IsDone() {
+			s.Stop()
+			delete(c.sessions, id)
+			delete(c.txReady, id)
+			if c.debugTiming {
+				c.debugStarts.Delete(id)
+			}
+			c.stats.sessionsClose.Add(1)
+			continue
+		}
+
+		if timeoutDur > 0 && s.IdleDuration() > timeoutDur {
+			// Reap idle/zombie session to free up active session slots
 			s.Stop()
 			delete(c.sessions, id)
 			delete(c.txReady, id)

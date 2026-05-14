@@ -28,14 +28,14 @@ If you like this project, please consider starring it on GitHub (⭐). It helps 
 
 You can also support the project financially:
 
-- TRX / USDT TRC20:
-  `TSxg2WAXYnkoR2UiUTzCxbmqNARAt91aqB`
 - BNB / USDT BEP20:
   `0xe7b48d8fd5fbbb4e3fa9a06723a62a88585139ea`
 - TON:
-  `UQDBzJqzJ5e7uZFPrmarTRSGGbD1UoFK2q5_jWh4D2nnNdUB`
+  `UQBGMOtXwBaCRMss4lBaQSEhzX1_JRK6qz3cgDZTKooNaLC5`
 
 ## Important Notes
+
+> ⚠️ **v1.7.x IPv6 Notice:** To prevent severe timeout lags on VPS machines without proper IPv6 routing, the VPS exit node explicitly forces `tcp4` and `udp4` dialing. All traffic is routed over IPv4. IPv6 routing support may be reintroduced in future updates if requested.
 
 - Never share `tunnel_key` with anyone. Anyone with this key can use your tunnel/VPS as if they are you.
 - A server with public internet access is required. Your exit server must be reachable from Google Apps Script.
@@ -208,47 +208,69 @@ curl http://YOUR.VPS.IP:8443/healthz
 
 You should get JSON like `{ "ok": true, "version": "vX.Y.Z", "protocol": 1 }` with HTTP 200. If `curl` times out or refuses, also check your **cloud provider's firewall** (called "Security Groups" on AWS/Hetzner, "Firewall Rules" on DigitalOcean/Vultr, etc.) and add an inbound rule for TCP port 8443.
 
-### Step 7: Start the server on your VPS
+### Step 7: Start the server on your VPS (Docker Compose natively in Host Mode)
 
-On your VPS, run the server binary:
+The recommended deployment method for Linux VPS exit nodes is using Docker Compose in Host Mode.
 
-**Linux:**
-```bash
-./goose-server -config server_config.json
-```
-
-**Windows Server:**
-```cmd
-.\goose-server.exe -config server_config.json
-```
-
-You should see it print the listening address and the healthz/tunnel URLs. Leave this terminal open, or set up the systemd/NSSM service (Step 8) to keep it running after reboots.
-
-**Docker (GHCR image):**
-
-> ⚠️ **Important:** The container does **not** auto-generate `server_config.json`. You must create and edit `server_config.json` first (with your own `tunnel_key`), then start the container.
+**1. Install Docker and Docker Compose:**
 
 ```bash
-docker run -d \
-  --name goose-server \
-  --restart unless-stopped \
-  -p 8443:8443 \
-  -v $(pwd)/server_config.json:/app/server_config.json:ro \
-  ghcr.io/nullroute-lab/gooserelayvpn-server:latest
+sudo apt update && sudo apt install docker.io docker-compose-v2 -y
+sudo systemctl enable --now docker
 ```
 
-**Docker Compose (recommended for container setup):**
+**(Iran Servers ONLY) Set Registry Mirror:**
+Create or edit `/etc/docker/daemon.json`. If it's a new file, paste the JSON block below. If it already exists, carefully add the `"registry-mirrors"` array to the existing JSON.
 
-```bash
-cp server_config.example.json server_config.json
-nano server_config.json
-docker compose up -d
+Add the following:
+```json
+{
+  "registry-mirrors": [
+    "https://docker.arvancloud.ir",
+    "https://docker.iranserver.com",
+    "https://mirror.gcr.io"
+  ]
+}
 ```
 
-The repo includes [`docker-compose.yml`](docker-compose.yml). By default it uses `ghcr.io/nullroute-lab/gooserelayvpn-server:latest`, and you can override it with:
+Apply the changes:
+```bash
+sudo systemctl restart docker
+```
+
+**2. Setup directory and config:**
 
 ```bash
-GOOSE_SERVER_IMAGE=ghcr.io/nullroute-lab/gooserelayvpn-server:vX.Y.Z docker compose up -d
+sudo mkdir -p /opt/goose-server && cd /opt/goose-server
+```
+Create `server_config.json` and add your server JSON config (ensure it uses `"0.0.0.0"` for the listen IP, port `8443`, and your matching `tunnel_key`).
+
+**3. Create Docker Compose file:**
+
+Create `docker-compose.yml` and paste this configuration:
+
+```yaml
+services:
+  goose-server:
+    image: ghcr.io/nullroute-lab/gooserelayvpn-server:latest
+    container_name: goose-server
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./server_config.json:/app/server_config.json:ro
+```
+
+**4. Start the server:**
+
+```bash
+sudo docker compose up -d
+```
+
+**5. Easy future update command:**
+
+When a new version is released, simply run:
+```bash
+cd /opt/goose-server && sudo docker compose pull && sudo docker compose up -d
 ```
 
 Verify from your own computer:
@@ -257,46 +279,7 @@ Verify from your own computer:
 curl http://YOUR.VPS.IP:8443/healthz
 ```
 
-### Step 8: Keep the server running after reboot (systemd)
-
-If you want the exit server to start automatically after a VPS reboot, create a systemd service.
-
-Run on your VPS:
-
-```bash
-sudo nano /etc/systemd/system/goose-relay.service
-```
-
-Paste this (adjust the path if your binary is in a different location):
-
-```ini
-[Unit]
-Description=GooseRelayVPN exit server
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/root
-ExecStart=/root/goose-server -config /root/server_config.json
-Restart=always
-RestartSec=3
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then run:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable goose-relay
-sudo systemctl start goose-relay
-sudo systemctl status goose-relay --no-pager
-```
-
-### Step 8 (Windows): Keep the server running after reboot (NSSM)
+### Step 8: (Optional) Windows VPS: Keep the server running after reboot (NSSM)
 
 If your VPS runs **Windows Server**, use [NSSM](https://nssm.cc) (Non-Sucking Service Manager) to register `goose-server` as a Windows service instead of systemd. The `goose-server.exe` binary is a plain Go binary — no installer needed.
 
@@ -329,10 +312,50 @@ C:\nssm\win64\nssm.exe stop GooseRelayVPN
 C:\nssm\win64\nssm.exe remove GooseRelayVPN confirm
 ```
 
-### Step 9: Run the client on your computer
+### Step 9: Run the client on your computer (Linux Systemd & Crontab)
 
+For Linux clients, the recommended deployment is using Systemd and a Crontab for daily resets.
+
+**1. Move binary to `/usr/local/bin`:**
 ```bash
-./goose-client -config client_config.json
+sudo mv goose-client /usr/local/bin/
+sudo chmod +x /usr/local/bin/goose-client
+```
+
+**2. Setup Configuration:**
+```bash
+sudo mkdir -p /etc/goose
+sudo cp client_config.json /etc/goose/
+```
+
+**3. Create Systemd Service:**
+Create `/etc/systemd/system/goose-client.service` and paste:
+
+```ini
+[Unit]
+Description=GooseRelayVPN client
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/goose-client -config /etc/goose/client_config.json
+Restart=always
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**4. Enable and Start the Service:**
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now goose-client
+```
+
+**5. Add Crontab for Daily Resets:**
+Run `crontab -e` (or `sudo crontab -e` if running as root) and add this line for daily 3 AM resets:
+```bash
+0 3 * * * /usr/bin/systemctl restart goose-client > /dev/null 2>&1
 ```
 
 You should see output like this:
@@ -454,8 +477,11 @@ What the client does for you automatically:
 | `socks_pass` | *(optional)* | SOCKS5 password paired with `socks_user`. |
 | `coalesce_step_ms` | `0` (off) | Adaptive uplink coalescing. Set it to a positive number to make the first kick of a burst of TX operations wait a little for more operations; each new operation resets the timer. This trades a bit of latency for fewer Apps Script calls. A good starting range is 20-40 ms. Set it to `0` to turn coalescing off. The internal safety cap is derived automatically from this value. |
 | `idle_slots_per_bucket` | `1` | Download-throughput tuning. The carrier holds this many concurrent idle long-polls open per account bucket to receive downstream pushes. Default `1` is the safe baseline established by issue #56's fix. Raise to `2` if each Google account has 2+ deployments — this may increase download throughput; leave at `1` if each account has only one deployment (raising it would put 2 simultaneous polls on a single deployment URL, which is more likely to trip Apps Script's per-account concurrency cap). Max `3`; values above are rejected. |
-| `max_active_sessions` | `0` | Adaptive connection storm protection. Limits the total number of concurrent active SOCKS5 sessions. When the limit is reached, excess connections are gracefully rejected. If set to `0`, the limit defaults to `len(script_keys) * 40`. |
-| `flush_size_kb` | `128` | Threshold-based flushing. The carrier aggregates pending outgoing payload bytes. Once this size is reached (in kilobytes), the payload is dispatched immediately, bypassing the coalesce timer and preventing buffer congestion under heavy load. If set to `0`, defaults to `128`. |
+| `idle_timeout_ms` | `3000` | Adaptive polling sleep mode. If the carrier experiences zero incoming or outgoing activity for this duration (in milliseconds), it steps down to a polling backoff (using `sleep_step_ms`) to conserve Apps Script quotas during idle periods. Any new traffic wakes it instantly. |
+| `sleep_step_ms` | `1000` | Adaptive polling backoff. When the client is idle (`idle_timeout_ms` breached), it polls Apps Script every `sleep_step_ms` rather than rapidly. |
+| `max_active_sessions` | `0` (auto) | Connection storm protection. Limits total concurrent SOCKS5 sessions. When full, new connections are rejected to prevent starvation. `0` = auto-scales to `len(script_keys) * 40`. `-1` = kill switch, fully disables the limit (infinite sessions allowed). |
+| `flush_size_kb` | `128` | Threshold flushing. Immediate burst flush triggered when pending payload bytes hit this threshold, bypassing `coalesce_step_ms` limits. |
+| `idle_session_timeout_ms` | `60000` | Idle Session Reaper. The system will forcefully close any SOCKS5 session that experiences zero read or write activity for this duration (in milliseconds), freeing up slots in `max_active_sessions`. Default: 60s. |
 
 ### Server (`server_config.json`)
 

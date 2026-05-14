@@ -67,6 +67,9 @@ type Client struct {
 
 	// FlushSizeKB triggers an immediate burst flush when pending bytes reach this size.
 	FlushSizeKB int
+
+	// IdleSessionTimeoutMs is the duration after which an inactive session is forcefully closed.
+	IdleSessionTimeoutMs int
 }
 
 // clientFile is the user-friendly client config format.
@@ -140,6 +143,9 @@ type clientFile struct {
 
 	// Threshold flushing
 	FlushSizeKB int `json:"flush_size_kb"`
+
+	// Idle session reaper
+	IdleSessionTimeoutMs int `json:"idle_session_timeout_ms"`
 }
 
 func firstNonEmpty(values ...string) string {
@@ -469,6 +475,13 @@ func LoadClient(path string) (*Client, error) {
 		flushSizeKB = 128
 	}
 
+	idleSessionTimeoutMs := f.IdleSessionTimeoutMs
+	if idleSessionTimeoutMs == 0 {
+		idleSessionTimeoutMs = 60000
+	} else if idleSessionTimeoutMs < 0 {
+		return nil, fmt.Errorf("idle_session_timeout_ms must be >= 0 in %s (got %d)", path, f.IdleSessionTimeoutMs)
+	}
+
 	c := Client{
 		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
 		GoogleIP:                    googleIP,
@@ -490,6 +503,7 @@ func LoadClient(path string) (*Client, error) {
 		JitterMaxMs:                 f.JitterMaxMs,
 		MaxActiveSessions:           maxActiveSessions,
 		FlushSizeKB:                 flushSizeKB,
+		IdleSessionTimeoutMs:        idleSessionTimeoutMs,
 	}
 	return &c, nil
 }
