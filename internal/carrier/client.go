@@ -102,6 +102,10 @@ type Config struct {
 	// MaxGlobalWorkers caps the concurrent active poll operations.
 	MaxGlobalWorkers int
 
+	// Adaptive Polling
+	IdleTimeoutMs int
+	SleepStepMs   int
+
 	// Timing disruption for anti-correlation
 	JitterMin time.Duration
 	JitterMax time.Duration
@@ -213,6 +217,9 @@ type Client struct {
 
 	// Global semaphore to limit concurrent active poll requests (CPU scaling)
 	globalSem chan struct{}
+
+	// Global activity tracking for adaptive polling
+	lastActivity atomic.Int64 // UnixNano
 }
 
 // clientStats holds atomic counters surfaced periodically by statsLoop.
@@ -322,6 +329,8 @@ func New(cfg Config) (*Client, error) {
 		coalesceStep:       cfg.CoalesceStep,
 		coalesceMax:        cfg.CoalesceMax,
 	}
+
+	cClient.lastActivity.Store(time.Now().UnixNano())
 
 	maxGlobalWorkers := cfg.MaxGlobalWorkers
 	if maxGlobalWorkers <= 0 {
@@ -458,6 +467,17 @@ func (c *Client) runWorker(ctx context.Context) {
 			continue
 		}
 		consecutiveIdle++
+
+		idleDuration := time.Since(time.Unix(0, c.lastActivity.Load()))
+		isSleeping := c.cfg.IdleTimeoutMs > 0 && idleDuration >= time.Duration(c.cfg.IdleTimeoutMs)*time.Millisecond
+
+		var backoff time.Duration
+		if isSleeping {
+			backoff = time.Duration(c.cfg.SleepStepMs) * time.Millisecond
+		} else {
+			backoff = idleBackoff(consecutiveIdle)
+		}
+
 		// Capture the wake channel before entering select so we cannot
 		// miss a Broadcast() that fires between drainAll() returning
 		// empty and us entering the wait. The wake takes precedence over
@@ -468,7 +488,7 @@ func (c *Client) runWorker(ctx context.Context) {
 			return
 		case <-wakeCh:
 			consecutiveIdle = 0
-		case <-time.After(idleBackoff(consecutiveIdle)):
+		case <-time.After(backoff):
 		}
 	}
 }
@@ -707,6 +727,12 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 			log.Printf("[timing] poll rtt=%dms tx_frames=%d rx_frames=%d resp_bytes=%d via %s",
 				time.Since(pollStart).Milliseconds(), len(frames), len(rxFrames), len(respBody), shortScriptKey(scriptURL))
 		}
+
+		// Touch last activity on RX so continuous downloads don't trigger the idle timeout
+		if len(rxFrames) > 0 {
+			c.lastActivity.Store(time.Now().UnixNano())
+		}
+
 		return len(frames) > 0 || len(rxFrames) > 0
 	}
 
@@ -1073,6 +1099,8 @@ func (c *Client) releaseIdlePollSlot() {
 // stream of arrivals does not delay the wake past coalesceMax. When step
 // is 0 the wake fires immediately as before.
 func (c *Client) kick() {
+	c.lastActivity.Store(time.Now().UnixNano())
+
 	if c.coalesceStep <= 0 {
 		c.wake.Broadcast()
 		return

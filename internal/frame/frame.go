@@ -14,6 +14,7 @@ const (
 	FlagFIN = 1 << 1 // sender is closing its write side
 	FlagACK = 1 << 2 // ACK-only / keepalive (no payload, no SYN, no FIN)
 	FlagRST = 1 << 3 // session reset: sender has no state for this session (e.g. server restart)
+	FlagUDP = 1 << 4 // payload contains a UDP datagram (prefixed with ATYP+Addr+Port)
 )
 
 const (
