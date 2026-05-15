@@ -2,6 +2,7 @@ package exit
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"io"
 	"log"
@@ -97,7 +98,7 @@ func TestExitDrainWindow_ActiveBatchUsesShortWindow(t *testing.T) {
 	target, closeFn := startSilentServer(t)
 	defer closeFn()
 	elapsed := invokeExitTunnel(t, s, c, []*frame.Frame{{
-		SessionID: [frame.SessionIDLen]byte{1},
+		SessionID: randSessionID(),
 		Seq:       0,
 		Flags:     frame.FlagSYN,
 		Target:    target,
@@ -114,7 +115,7 @@ func BenchmarkExitActiveSilent(b *testing.B) {
 	target, closeFn := startSilentServer(b)
 	defer closeFn()
 	frames := []*frame.Frame{{
-		SessionID: [frame.SessionIDLen]byte{2},
+		SessionID: randSessionID(),
 		Seq:       0,
 		Flags:     frame.FlagSYN,
 		Target:    target,
@@ -208,10 +209,10 @@ func TestExit_MultiClient_SessionIsolation(t *testing.T) {
 	upstreamB, closeB := startMarkerServer(t, markerB, 30*time.Millisecond)
 	defer closeB()
 
-	clientA := [frame.ClientIDLen]byte{0xAA}
-	clientB := [frame.ClientIDLen]byte{0xBB}
-	sidA := [frame.SessionIDLen]byte{0xA1}
-	sidB := [frame.SessionIDLen]byte{0xB1}
+	clientA := randClientID()
+	clientB := randClientID()
+	sidA := randSessionID()
+	sidB := randSessionID()
 
 	type result struct {
 		label  string
@@ -286,9 +287,9 @@ func TestExit_MultiClient_RejectsSessionSpoof(t *testing.T) {
 	upstream, closeUp := startMarkerServer(t, []byte("alpha-data"), 0)
 	defer closeUp()
 
-	clientA := [frame.ClientIDLen]byte{0xAA}
-	clientB := [frame.ClientIDLen]byte{0xBB}
-	sidA := [frame.SessionIDLen]byte{0xA1}
+	clientA := randClientID()
+	clientB := randClientID()
+	sidA := randSessionID()
 
 	// Client A opens the session.
 	_ = invokeAsClient(t, s, c, clientA, []*frame.Frame{{
@@ -325,25 +326,25 @@ func TestExit_MultiClient_RejectsSessionSpoof(t *testing.T) {
 // dead target, every subsequent SYN in the batch used to wait the full
 // dial timeout sequentially. handleTunnel now parallelizes SYN dials.
 //
-// Three SYNs each take ~600 ms to dial. Sequentially that is ~1.8 s;
-// in parallel it is ~600 ms. We assert the batch completes under
-// 1.2 s — comfortably below sequential, comfortably above any flake
+// Three SYNs each take ~1500 ms to dial. Sequentially that is ~4.5 s;
+// in parallel it is ~1500 ms. We assert the batch completes under
+// 3.0 s — comfortably below sequential, comfortably above any flake
 // floor on slow CI.
 func TestExit_SYNDialsRunInParallel(t *testing.T) {
 	s := mustExitTimingServer(t)
 	c := mustExitTimingCrypto(t)
 
-	const dialDelay = 600 * time.Millisecond
+	const dialDelay = 1500 * time.Millisecond
 	s.dial = func(_, addr string, _ time.Duration) (net.Conn, error) {
 		time.Sleep(dialDelay)
 		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errSimulatedDialFail{}}
 	}
 
-	clientID := [frame.ClientIDLen]byte{0xCC}
+	clientID := randClientID()
 	frames := []*frame.Frame{
-		{SessionID: [frame.SessionIDLen]byte{0xA1}, Flags: frame.FlagSYN, Target: "a.example:443"},
-		{SessionID: [frame.SessionIDLen]byte{0xB2}, Flags: frame.FlagSYN, Target: "b.example:443"},
-		{SessionID: [frame.SessionIDLen]byte{0xC3}, Flags: frame.FlagSYN, Target: "c.example:443"},
+		{SessionID: randSessionID(), Flags: frame.FlagSYN, Target: "a.example:443"},
+		{SessionID: randSessionID(), Flags: frame.FlagSYN, Target: "b.example:443"},
+		{SessionID: randSessionID(), Flags: frame.FlagSYN, Target: "c.example:443"},
 	}
 
 	muteLogsForBench(t)
@@ -357,11 +358,10 @@ func TestExit_SYNDialsRunInParallel(t *testing.T) {
 	s.handleTunnel(rec, req)
 	elapsed := time.Since(t0)
 
-	// Sequential bound = 3 × dialDelay = 1.8 s. Parallel bound ≈ dialDelay = 600 ms.
-	// Plus the ActiveDrainWindow (350 ms) that handleTunnel waits after dialing.
-	if elapsed > dialDelay+ActiveDrainWindow+250*time.Millisecond {
-		t.Fatalf("3 SYNs dispatched serially: elapsed=%v (expected ~%v in parallel)",
-			elapsed, dialDelay+ActiveDrainWindow)
+	// Sequential bound = 3 * dialDelay = 4.5s. Parallel bound ~ dialDelay = 1.5s.
+	// We use a generous threshold of 3000ms to allow for slow Windows CI runners.
+	if elapsed > 3000*time.Millisecond {
+		t.Fatalf("3 SYNs dispatched serially: elapsed=%v (expected ~1850ms in parallel, threshold 3000ms)", elapsed)
 	}
 }
 
@@ -653,4 +653,16 @@ func muteLogsForBench(tb testing.TB) {
 	tb.Cleanup(func() {
 		log.SetOutput(prev)
 	})
+}
+
+func randSessionID() [frame.SessionIDLen]byte {
+	var id [frame.SessionIDLen]byte
+	rand.Read(id[:])
+	return id
+}
+
+func randClientID() [frame.ClientIDLen]byte {
+	var id [frame.ClientIDLen]byte
+	rand.Read(id[:])
+	return id
 }
