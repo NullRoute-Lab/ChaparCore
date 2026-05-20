@@ -1,4 +1,4 @@
-// GooseRelayVPN client: SOCKS5 listener that tunnels TCP through Apps Script.
+// ChaparCore client: SOCKS5 listener that tunnels TCP through Apps Script.
 package main
 
 import (
@@ -13,13 +13,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nullroute-lab/GooseRelayVPN/internal/carrier"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/config"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/socks"
+	"github.com/nullroute-lab/ChaparCore/internal/carrier"
+	"github.com/nullroute-lab/ChaparCore/internal/config"
+	"github.com/nullroute-lab/ChaparCore/internal/branding"
+	"runtime"
+	"github.com/nullroute-lab/ChaparCore/internal/session"
+	"github.com/nullroute-lab/ChaparCore/internal/socks"
 )
 
-var version = "dev"
+
 
 type clientLogWriter struct {
 	out      io.Writer
@@ -112,27 +114,17 @@ func summarizeScriptURLs(scriptURLs []string) string {
 	return strings.Join(parts, ", ")
 }
 
-const gooseBanner = `
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣄⡀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣏⣹⣿⠄⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⠿⠋⢠⣷⣦⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣿⣿⣿⣿⡆⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣶⣿⣿⣿⠛⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⠇⢸⣿⣿⡿⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⢀⣠⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠋⣠⣿⣿⣿⠇⠀⠀⠀⠀⠀⠀
-⠀⠀⠰⢾⣿⣿⣿⡟⠿⠿⣿⣿⠿⠿⠛⠋⣁⣴⣾⣿⣿⠿⠋⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠉⠛⠻⠷⣶⣤⣤⣤⣤⣶⣾⣿⡿⠿⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⢀⣶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠛⠛⠛⠛⠛⠂⠀⠀⠀⠀
-`
 
 func main() {
-	fmt.Print(gooseBanner)
+
+	fmt.Print(branding.Banner)
 	setupClientLogging()
+
+	log.Printf("[client] System Diagnostics")
+	log.Printf("[client]   - OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
+	log.Printf("[client]   - Go Version: %s", runtime.Version())
+	log.Printf("[client]   - CPU Cores: %d", runtime.NumCPU())
+	log.Printf("[client]   - Features: Reaper, Threshold Flushing, Storm Protection")
 
 	configPath := flag.String("config", "client_config.json", "path to client config JSON")
 	flag.Parse()
@@ -141,7 +133,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	log.Printf("[client] GooseRelayVPN client starting")
+	log.Printf("[client] ChaparCore Engine Initialized [v%s]", branding.Version)
 	log.Printf("[client] config loaded from %s", *configPath)
 	log.Printf("[client] SOCKS5 proxy: socks5://%s", cfg.ListenAddr)
 	if cfg.UseFronting {
@@ -166,7 +158,7 @@ func main() {
 		ScriptAccounts:     cfg.ScriptAccounts,
 		AESKeyHex:          cfg.AESKeyHex,
 		DebugTiming:        cfg.DebugTiming,
-		ClientVersion:      version,
+		ClientVersion:      branding.Version,
 		CoalesceStep:       time.Duration(cfg.CoalesceStepMs) * time.Millisecond,
 		CoalesceMax:        time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
 		IdleSlotsPerBucket: cfg.IdleSlotsPerBucket,

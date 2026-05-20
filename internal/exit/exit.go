@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/protocol"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
+	"github.com/nullroute-lab/ChaparCore/internal/frame"
+	"github.com/nullroute-lab/ChaparCore/internal/protocol"
+	"github.com/nullroute-lab/ChaparCore/internal/session"
 	"golang.org/x/net/proxy"
 )
 

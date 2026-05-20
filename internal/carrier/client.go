@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/session"
+	"github.com/nullroute-lab/ChaparCore/internal/frame"
+	"github.com/nullroute-lab/ChaparCore/internal/session"
 )
 
 const (

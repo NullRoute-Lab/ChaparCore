@@ -52,19 +52,19 @@ jobs:
           PLATFORM="${GOOS}-${GOARCH}$( [ -n "${GOARM:-}" ] && echo "v${GOARM}" || true )"
           SUFFIX=""
           if [ "$GOOS" = "windows" ]; then SUFFIX=".exe"; fi
-          LDFLAGS="-s -w -X main.version=${VERSION}"
+          LDFLAGS="-s -w -X github.com/nullroute-lab/ChaparCore/internal/branding.Version=${VERSION}"
 
           # --- client ---
-          CLIENT_NAME="GooseRelayVPN-client-${VERSION}-${PLATFORM}"
+          CLIENT_NAME="ChaparCore-client-${VERSION}-${PLATFORM}"
           mkdir -p "dist/$CLIENT_NAME"
-          go build -trimpath -ldflags "$LDFLAGS" -o "dist/$CLIENT_NAME/goose-client${SUFFIX}" ./cmd/client
+          go build -trimpath -ldflags "$LDFLAGS" -o "dist/$CLIENT_NAME/chapar-client${SUFFIX}" ./cmd/client
           cp client_config.example.json "dist/$CLIENT_NAME/"
 
           # --- server ---
           if [ "$GOOS" != "android" ]; then
-            SERVER_NAME="GooseRelayVPN-server-${VERSION}-${PLATFORM}"
+            SERVER_NAME="ChaparCore-server-${VERSION}-${PLATFORM}"
             mkdir -p "dist/$SERVER_NAME"
-            go build -trimpath -ldflags "$LDFLAGS" -o "dist/$SERVER_NAME/goose-server${SUFFIX}" ./cmd/server
+            go build -trimpath -ldflags "$LDFLAGS" -o "dist/$SERVER_NAME/chapar-server${SUFFIX}" ./cmd/server
             cp server_config.example.json "dist/$SERVER_NAME/"
           fi
 
@@ -87,8 +87,8 @@ jobs:
         with:
           name: ${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goarm && format('v{0}', matrix.goarm) || '' }}
           path: |
-            dist/GooseRelayVPN-*.tar.gz
-            dist/GooseRelayVPN-*.zip
+            dist/ChaparCore-*.tar.gz
+            dist/ChaparCore-*.zip
 
   release:
     name: Publish release
@@ -103,14 +103,14 @@ jobs:
       - name: Generate SHA256SUMS
         run: |
           cd dist
-          find . -maxdepth 1 -type f -name 'GooseRelayVPN-*' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          find . -maxdepth 1 -type f -name 'ChaparCore-*' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/GooseRelayVPN-*.tar.gz
-            dist/GooseRelayVPN-*.zip
+            dist/ChaparCore-*.tar.gz
+            dist/ChaparCore-*.zip
             dist/SHA256SUMS.txt
           generate_release_notes: true
         env:

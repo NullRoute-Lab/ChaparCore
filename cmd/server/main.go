@@ -1,22 +1,35 @@
-// GooseRelayVPN server (VPS exit): receives AES-encrypted frame batches from
+// ChaparCore server (VPS exit): receives AES-encrypted frame batches from
 // Apps Script, decrypts, and bridges to real upstream TCP targets.
 package main
 
 import (
+	"fmt"
+
 	"flag"
 	"log"
 	"net"
 	"strings"
 
-	"github.com/nullroute-lab/GooseRelayVPN/internal/config"
-	"github.com/nullroute-lab/GooseRelayVPN/internal/exit"
+	"github.com/nullroute-lab/ChaparCore/internal/config"
+	"github.com/nullroute-lab/ChaparCore/internal/branding"
+	"runtime"
+	"github.com/nullroute-lab/ChaparCore/internal/exit"
 )
 
-var version = "dev"
+
 
 func main() {
 	configPath := flag.String("config", "server_config.json", "path to server config JSON")
 	flag.Parse()
+
+	fmt.Print(branding.Banner)
+	log.Printf("[exit] System Diagnostics")
+	log.Printf("[exit]   - OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
+	log.Printf("[exit]   - Go Version: %s", runtime.Version())
+	log.Printf("[exit]   - CPU Cores: %d", runtime.NumCPU())
+	log.Printf("[exit]   - Features: Reaper, Threshold Flushing, Storm Protection")
+
+	log.Printf("[exit] ChaparCore Engine Initialized [v%s]", branding.Version)
 
 	cfg, err := config.LoadServer(*configPath)
 	if err != nil {
@@ -28,7 +41,7 @@ func main() {
 		AESKeyHex:     cfg.AESKeyHex,
 		DebugTiming:   cfg.DebugTiming,
 		UpstreamProxy: cfg.UpstreamProxy,
-		Version:       version,
+		Version:       branding.Version,
 	})
 	if err != nil {
 		log.Fatalf("exit: %v", err)
@@ -50,7 +63,7 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "address already in use") {
-			log.Fatalf("port %s is already in use — another goose-server may be running.\n  Check with: sudo lsof -i :%s", port, port)
+			log.Fatalf("port %s is already in use — another chapar-server may be running.\n  Check with: sudo lsof -i :%s", port, port)
 		}
 		if strings.Contains(msg, "permission denied") {
 			log.Fatalf("permission denied binding %s — ports below 1024 require root, or pick a different server_port (e.g. 8443)", cfg.ListenAddr)

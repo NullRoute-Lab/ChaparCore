@@ -1,7 +1,7 @@
 services:
-  goose-server:
-    image: ${GOOSE_SERVER_IMAGE:-ghcr.io/nullroute-lab/gooserelayvpn-server:latest}
-    container_name: goose-server
+  chapar-server:
+    image: ${GOOSE_SERVER_IMAGE:-ghcr.io/nullroute-lab/chaparcorevpn-server:latest}
+    container_name: chapar-server
     restart: unless-stopped
     ports:
       - "8443:8443"

@@ -71,7 +71,7 @@ echo "==> building bench tools"
     go build -o "$BIN_DIR/harness" ./bench/harness && \
     go build -o "$BIN_DIR/diff" ./bench/diff )
 
-# ─── build_ref REF DEST_DIR — build goose-client and goose-server at REF ──
+# ─── build_ref REF DEST_DIR — build chapar-client and chapar-server at REF ──
 build_ref() {
     local ref="$1"
     local dest="$2"
@@ -94,8 +94,8 @@ build_ref() {
 
     mkdir -p "$dest"
     ( cd "$src" && \
-        go build -trimpath -o "$dest/goose-client" ./cmd/client && \
-        go build -trimpath -o "$dest/goose-server" ./cmd/server )
+        go build -trimpath -o "$dest/chapar-client" ./cmd/client && \
+        go build -trimpath -o "$dest/chapar-server" ./cmd/server )
 }
 
 # ─── run_harness REF OUT_JSON BIN_DIR ─────────────────────────────────────
@@ -112,8 +112,8 @@ run_harness() {
 
     echo "==> running harness for $ref (commit=$commit) → $out"
     "$BIN_DIR/harness" \
-        --client-bin "$bins/goose-client" \
-        --server-bin "$bins/goose-server" \
+        --client-bin "$bins/chapar-client" \
+        --server-bin "$bins/chapar-server" \
         --sink-bin "$BIN_DIR/sink" \
         --out "$out" \
         --ref "$ref" \

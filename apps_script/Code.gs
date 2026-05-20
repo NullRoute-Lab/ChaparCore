@@ -29,7 +29,7 @@ function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.legacy === '1') {
       return ContentService
-        .createTextOutput('GooseRelay forwarder OK')
+        .createTextOutput('ChaparCore forwarder OK')
         .setMimeType(ContentService.MimeType.TEXT);
     }
     if (e && e.parameter && e.parameter.meta === '1') {
