@@ -29,7 +29,7 @@ func main() {
 	log.Printf("[exit]   - CPU Cores: %d", runtime.NumCPU())
 	log.Printf("[exit]   - Features: Reaper, Threshold Flushing, Storm Protection")
 
-	log.Printf("[exit] ChaparCore Engine Initialized [v%s]", branding.Version)
+	log.Printf("[exit] ChaparCore Engine Initialized [%s]", branding.Version)
 
 	cfg, err := config.LoadServer(*configPath)
 	if err != nil {

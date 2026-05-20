@@ -133,7 +133,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	log.Printf("[client] ChaparCore Engine Initialized [v%s]", branding.Version)
+	log.Printf("[client] ChaparCore Engine Initialized [%s]", branding.Version)
 	log.Printf("[client] config loaded from %s", *configPath)
 	log.Printf("[client] SOCKS5 proxy: socks5://%s", cfg.ListenAddr)
 	if cfg.UseFronting {
