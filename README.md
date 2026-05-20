@@ -1,6 +1,6 @@
-# GooseRelayVPN
+# ChaparCore
 
-[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/nullroute-lab/GooseRelayVPN)
+[![GitHub](https://img.shields.io/badge/GitHub-ChaparCore-blue?logo=github)](https://github.com/nullroute-lab/ChaparCore)
 
 **[🇮🇷 راهنمای فارسی (Persian)](README_FA.md)**
 
@@ -47,7 +47,7 @@ You can also support the project financially:
 
 ## Disclaimer
 
-GooseRelayVPN is provided for educational, testing, and research purposes only.
+ChaparCore is provided for educational, testing, and research purposes only.
 
 - **Provided without warranty:** This software is provided "AS IS", without express or implied warranty, including merchantability, fitness for a particular purpose, and non-infringement.
 - **Limitation of liability:** The developers and contributors are not responsible for any direct, indirect, incidental, consequential, or other damages resulting from the use of this project.
@@ -83,51 +83,51 @@ You need a Linux VPS with a public IP. Any provider works.
 ### Step 2: Get the binaries
 
 You need two separate programs:
-- **`goose-client`** — runs on **your own computer**. This is what you run every day.
-- **`goose-server`** — runs on **your VPS**. You set it up once and leave it running.
+- **`chapar-client`** — runs on **your own computer**. This is what you run every day.
+- **`chapar-server`** — runs on **your VPS**. You set it up once and leave it running.
 
 **Option A — Download a pre-built release (recommended):**
 
-1. Go to the [Releases page](https://github.com/nullroute-lab/GooseRelayVPN/releases).
+1. Go to the [Releases page](https://github.com/nullroute-lab/ChaparCore/releases).
 2. Download the right archive for your OS:
-   - Windows: `GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-   - macOS (Intel): `GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-   - macOS (M1/M2/M3): `GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-   - Linux: `GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-   - Android / Termux (arm64): `GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
+   - Windows: `ChaparCore-client-vX.Y.Z-windows-amd64.zip`
+   - macOS (Intel): `ChaparCore-client-vX.Y.Z-darwin-amd64.tar.gz`
+   - macOS (M1/M2/M3): `ChaparCore-client-vX.Y.Z-darwin-arm64.tar.gz`
+   - Linux: `ChaparCore-client-vX.Y.Z-linux-amd64.tar.gz`
+   - Android / Termux (arm64): `ChaparCore-client-vX.Y.Z-android-arm64.tar.gz`
 3. For the **server**, SSH into your VPS and download the binary for your server OS:
    - **Linux (most common):**
      ```bash
-     wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
-     tar -xzf GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
+     wget https://github.com/nullroute-lab/ChaparCore/releases/latest/download/ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz
+     tar -xzf ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz
      ```
-   - **Windows Server:** download `GooseRelayVPN-server-vX.Y.Z-windows-amd64.zip` from the Releases page and extract it to a folder such as `C:\goose-relay\`. See Step 8 (Windows) below for service setup.
+   - **Windows Server:** download `ChaparCore-server-vX.Y.Z-windows-amd64.zip` from the Releases page and extract it to a folder such as `C:\chapar-core\`. See Step 8 (Windows) below for service setup.
 
    (Replace `vX.Y.Z` with the latest version number from the Releases page.)
 
 > 💡 **If the Releases page doesn't open**, you can download directly using these links (replace `vX.Y.Z` with the latest version):
-> - **Client — Windows:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-> - **Client — macOS (Apple Silicon):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-> - **Client — macOS (Intel):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-> - **Client — Linux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-> - **Client — Android/Termux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
-> - **Server — Linux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
+> - **Client — Windows:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-windows-amd64.zip`
+> - **Client — macOS (Apple Silicon):** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-darwin-arm64.tar.gz`
+> - **Client — macOS (Intel):** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-darwin-amd64.tar.gz`
+> - **Client — Linux:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-linux-amd64.tar.gz`
+> - **Client — Android/Termux:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-android-arm64.tar.gz`
+> - **Server — Linux:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz`
 
 **Option B — Build from source (Go 1.22+) — not recommended, may be unstable:**
 
 ```bash
-git clone https://github.com/nullroute-lab/GooseRelayVPN.git
-cd GooseRelayVPN
-go build -o goose-client ./cmd/client
-go build -o goose-server ./cmd/server
+git clone https://github.com/nullroute-lab/ChaparCore.git
+cd ChaparCore
+go build -o chapar-client ./cmd/client
+go build -o chapar-server ./cmd/server
 ```
 
 **Option C — Run only the server with Docker (GHCR):**
 
-If you prefer containers on your VPS, you can run `goose-server` directly from GHCR:
+If you prefer containers on your VPS, you can run `chapar-server` directly from GHCR:
 
 ```bash
-docker pull ghcr.io/nullroute-lab/gooserelayvpn-server:latest
+docker pull ghcr.io/nullroute-lab/chaparcore-server:latest
 ```
 
 ### Step 3: Generate a secret key
@@ -241,7 +241,7 @@ sudo systemctl restart docker
 **2. Setup directory and config:**
 
 ```bash
-sudo mkdir -p /opt/goose-server && cd /opt/goose-server
+sudo mkdir -p /opt/chapar-server && cd /opt/chapar-server
 ```
 Create `server_config.json` and add your server JSON config (ensure it uses `"0.0.0.0"` for the listen IP, port `8443`, and your matching `tunnel_key`).
 
@@ -251,9 +251,9 @@ Create `docker-compose.yml` and paste this configuration:
 
 ```yaml
 services:
-  goose-server:
-    image: ghcr.io/nullroute-lab/gooserelayvpn-server:latest
-    container_name: goose-server
+  chapar-server:
+    image: ghcr.io/nullroute-lab/chaparcore-server:latest
+    container_name: chapar-server
     restart: unless-stopped
     network_mode: "host"
     volumes:
@@ -270,7 +270,7 @@ sudo docker compose up -d
 
 When a new version is released, simply run:
 ```bash
-cd /opt/goose-server && sudo docker compose pull && sudo docker compose up -d
+cd /opt/chapar-server && sudo docker compose pull && sudo docker compose up -d
 ```
 
 Verify from your own computer:
@@ -281,11 +281,11 @@ curl http://YOUR.VPS.IP:8443/healthz
 
 ### Step 8: (Optional) Windows VPS: Keep the server running after reboot (NSSM)
 
-If your VPS runs **Windows Server**, use [NSSM](https://nssm.cc) (Non-Sucking Service Manager) to register `goose-server` as a Windows service instead of systemd. The `goose-server.exe` binary is a plain Go binary — no installer needed.
+If your VPS runs **Windows Server**, use [NSSM](https://nssm.cc) (Non-Sucking Service Manager) to register `chapar-server` as a Windows service instead of systemd. The `chapar-server.exe` binary is a plain Go binary — no installer needed.
 
 **1. Open port 8443 in Windows Firewall** (run as Administrator in Command Prompt):
 ```cmd
-netsh advfirewall firewall add rule name="GooseRelayVPN" protocol=TCP dir=in localport=8443 action=allow
+netsh advfirewall firewall add rule name="ChaparCore" protocol=TCP dir=in localport=8443 action=allow
 ```
 Also add an inbound TCP/8443 rule in your cloud provider's firewall panel (Security Groups / Firewall Rules).
 
@@ -293,23 +293,23 @@ Also add an inbound TCP/8443 rule in your cloud provider's firewall panel (Secur
 
 **3. Register and start the service** (run as Administrator):
 ```cmd
-C:\nssm\win64\nssm.exe install GooseRelayVPN "C:\goose-relay\goose-server.exe"
-C:\nssm\win64\nssm.exe set GooseRelayVPN AppParameters "-config C:\goose-relay\server_config.json"
-C:\nssm\win64\nssm.exe set GooseRelayVPN AppDirectory "C:\goose-relay"
-C:\nssm\win64\nssm.exe set GooseRelayVPN Start SERVICE_AUTO_START
-C:\nssm\win64\nssm.exe start GooseRelayVPN
+C:\nssm\win64\nssm.exe install ChaparCore "C:\chapar-core\chapar-server.exe"
+C:\nssm\win64\nssm.exe set ChaparCore AppParameters "-config C:\chapar-core\server_config.json"
+C:\nssm\win64\nssm.exe set ChaparCore AppDirectory "C:\chapar-core"
+C:\nssm\win64\nssm.exe set ChaparCore Start SERVICE_AUTO_START
+C:\nssm\win64\nssm.exe start ChaparCore
 ```
 
 **4. Verify it is running:**
 ```cmd
-C:\nssm\win64\nssm.exe status GooseRelayVPN
+C:\nssm\win64\nssm.exe status ChaparCore
 curl http://YOUR.VPS.IP:8443/healthz
 ```
 
 To stop or uninstall later:
 ```cmd
-C:\nssm\win64\nssm.exe stop GooseRelayVPN
-C:\nssm\win64\nssm.exe remove GooseRelayVPN confirm
+C:\nssm\win64\nssm.exe stop ChaparCore
+C:\nssm\win64\nssm.exe remove ChaparCore confirm
 ```
 
 ### Step 9: Run the client on your computer (Linux Systemd & Crontab)
@@ -318,8 +318,8 @@ For Linux clients, the recommended deployment is using Systemd and a Crontab for
 
 **1. Move binary to `/usr/local/bin`:**
 ```bash
-sudo mv goose-client /usr/local/bin/
-sudo chmod +x /usr/local/bin/goose-client
+sudo mv chapar-client /usr/local/bin/
+sudo chmod +x /usr/local/bin/chapar-client
 ```
 
 **2. Setup Configuration:**
@@ -329,16 +329,16 @@ sudo cp client_config.json /etc/goose/
 ```
 
 **3. Create Systemd Service:**
-Create `/etc/systemd/system/goose-client.service` and paste:
+Create `/etc/systemd/system/chapar-client.service` and paste:
 
 ```ini
 [Unit]
-Description=GooseRelayVPN client
+Description=ChaparCore client
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/goose-client -config /etc/goose/client_config.json
+ExecStart=/usr/local/bin/chapar-client -config /etc/goose/client_config.json
 Restart=always
 LimitNOFILE=1048576
 
@@ -349,19 +349,19 @@ WantedBy=multi-user.target
 **4. Enable and Start the Service:**
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now goose-client
+sudo systemctl enable --now chapar-client
 ```
 
 **5. Add Crontab for Daily Resets:**
 Run `crontab -e` (or `sudo crontab -e` if running as root) and add this line for daily 3 AM resets:
 ```bash
-0 3 * * * /usr/bin/systemctl restart goose-client > /dev/null 2>&1
+0 3 * * * /usr/bin/systemctl restart chapar-client > /dev/null 2>&1
 ```
 
 You should see output like this:
 
 ```
-CLIENT  INFO    GooseRelayVPN client starting
+CLIENT  INFO    ChaparCore client starting
 CLIENT  INFO    SOCKS5 proxy: socks5://127.0.0.1:1080
 CLIENT  INFO    pre-flight OK: relay healthy, AES key matches end-to-end
 CLIENT  INFO    ready: local SOCKS5 is listening on 127.0.0.1:1080
@@ -389,10 +389,10 @@ pkg install wget tar -y
 
 **2. Download and extract the client:**
 ```bash
-wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
-tar -xzvf GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
-cd GooseRelayVPN-client-v1.6.0-android-arm64/
-chmod +x goose-client
+wget https://github.com/nullroute-lab/ChaparCore/releases/latest/download/ChaparCore-client-v1.6.0-android-arm64.tar.gz
+tar -xzvf ChaparCore-client-v1.6.0-android-arm64.tar.gz
+cd ChaparCore-client-v1.6.0-android-arm64/
+chmod +x chapar-client
 ```
 
 **3. Create your config:**
@@ -404,7 +404,7 @@ Fill in your `script_keys` and `tunnel_key`, then save with Ctrl+X.
 
 **4. Run the client:**
 ```bash
-./goose-client -config client_config.json
+./chapar-client -config client_config.json
 ```
 
 When you see `ready: local SOCKS5 is listening on 127.0.0.1:1080` it's working.
@@ -507,7 +507,7 @@ The current `Code.gs` also tracks per-deployment invocation counts and exposes t
 
 ```
 ┌─────────┐   ┌──────────────┐   ┌──────────────┐   ┌─────────────┐   ┌──────────┐
-│ Browser │──►│ goose-client │──►│ Google edge  │──►│ Apps Script │──►│  Your    │──► Internet
+│ Browser │──►│ chapar-client │──►│ Google edge  │──►│ Apps Script │──►│  Your    │──► Internet
 │  / App  │◄──│  (SOCKS5)    │◄──│ TLS, fronted │◄──│  doPost()   │◄──│  VPS     │◄──
 └─────────┘   └──────────────┘   └──────────────┘   └─────────────┘   └──────────┘
               AES-256-GCM         SNI=www.google     dumb forwarder    decrypt +
@@ -533,7 +533,7 @@ Key invariants:
 ## Project Files
 
 ```
-GooseRelayVPN/
+ChaparCore/
 ├── cmd/
 │   ├── client/main.go              # Entry point: SOCKS5 listener + carrier loop
 │   └── server/main.go              # Entry point: VPS HTTP handler
@@ -553,7 +553,7 @@ GooseRelayVPN/
 ├── apps_script/
 │   └── Code.gs                     # ~30-line dumb forwarder
 ├── scripts/
-│   └── goose-relay.service         # systemd unit template
+│   └── chapar-core.service         # systemd unit template
 ├── client_config.example.json
 └── server_config.example.json
 ```
@@ -566,7 +566,7 @@ GooseRelayVPN/
 
 | Problem | Solution |
 |---|---|
-| `cannot execute binary file: Exec format error` when running `goose-server` or `goose-client` | You downloaded the wrong archive for your OS/architecture. The folder name tells you what you got — e.g. `…-darwin-amd64` is a **macOS** binary and won't run on Linux. Re-download the matching archive (Linux VPS → `linux-amd64`; Apple Silicon Mac → `darwin-arm64`; Termux → `android-arm64`). |
+| `cannot execute binary file: Exec format error` when running `chapar-server` or `chapar-client` | You downloaded the wrong archive for your OS/architecture. The folder name tells you what you got — e.g. `…-darwin-amd64` is a **macOS** binary and won't run on Linux. Re-download the matching archive (Linux VPS → `linux-amd64`; Apple Silicon Mac → `darwin-arm64`; Termux → `android-arm64`). |
 | Pre-flight fails: `cannot reach Apps Script` | Your internet connection can't reach Google. Check `google_host` — try a different IP from the 216.239.x.120 range. |
 | Pre-flight fails: `HTTP 204 — key mismatch` | The `tunnel_key` in `client_config.json` doesn't match the one in `server_config.json` on the VPS. They must be byte-identical. |
 | Pre-flight fails: `Apps Script cannot reach your VPS` | Port 8443 on your VPS is not reachable. Run `sudo ufw allow 8443/tcp` on the VPS and check your cloud provider's firewall rules. |
@@ -598,7 +598,7 @@ GooseRelayVPN/
 
 Pull requests are welcome. For any change that touches the carrier loop, session layer, or poll behavior, please include benchmark results so reviewers can evaluate the performance impact.
 
-The `bench/` directory contains an end-to-end harness that spins up real `goose-client` and `goose-server` binaries against a loopback TCP sink and measures throughput, TTFB, session rate, and idle CPU.
+The `bench/` directory contains an end-to-end harness that spins up real `chapar-client` and `chapar-server` binaries against a loopback TCP sink and measures throughput, TTFB, session rate, and idle CPU.
 
 ```bash
 # Build the binaries and run the full benchmark suite

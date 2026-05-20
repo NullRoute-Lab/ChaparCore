@@ -16,7 +16,7 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const frontedProbeOKBody = "GooseRelay forwarder OK"
+const frontedProbeOKBody = "ChaparCore forwarder OK"
 
 type FrontingConfig struct {
 	GoogleIP string

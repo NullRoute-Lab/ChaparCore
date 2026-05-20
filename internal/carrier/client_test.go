@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nullroute-lab/GooseRelayVPN/internal/frame"
+	"github.com/nullroute-lab/ChaparCore/internal/frame"
 )
 
 const testKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

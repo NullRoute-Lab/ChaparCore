@@ -1,6 +1,6 @@
-# GooseRelayVPN
+# ChaparCore
 
-[![GitHub](https://img.shields.io/badge/GitHub-GooseRelayVPN-blue?logo=github)](https://github.com/nullroute-lab/GooseRelayVPN)
+[![GitHub](https://img.shields.io/badge/GitHub-ChaparCore-blue?logo=github)](https://github.com/nullroute-lab/ChaparCore)
 
 **[English README](README.md)**
 
@@ -47,7 +47,7 @@
 
 ## سلب مسئولیت
 
-GooseRelayVPN فقط برای اهداف آموزشی، تست و پژوهش ارائه شده است.
+ChaparCore فقط برای اهداف آموزشی، تست و پژوهش ارائه شده است.
 
 - **بدون ضمانت:** این نرم‌افزار به‌صورت "همان‌گونه که هست" ارائه می‌شود و هیچ ضمانت صریح یا ضمنی، از جمله قابلیت فروش، مناسب بودن برای هدف خاص یا عدم نقض حقوق دیگران، برای آن وجود ندارد.
 - **محدودیت مسئولیت:** توسعه‌دهندگان و مشارکت‌کنندگان مسئول هیچ خسارت مستقیم، غیرمستقیم، اتفاقی، تبعی یا هر نوع خسارت ناشی از استفاده از این پروژه نیستند.
@@ -83,51 +83,51 @@ Browser/App
 ### مرحله ۲: دریافت باینری‌ها
 
 شما به دو برنامه جداگانه نیاز دارید:
-- **`goose-client`** — روی **کامپیوتر خودتان** اجرا می‌شود. این همان چیزی است که هر روز اجرا می‌کنید.
-- **`goose-server`** — روی **VPS** اجرا می‌شود. یک‌بار راه‌اندازی می‌کنید و همان‌جا می‌ماند.
+- **`chapar-client`** — روی **کامپیوتر خودتان** اجرا می‌شود. این همان چیزی است که هر روز اجرا می‌کنید.
+- **`chapar-server`** — روی **VPS** اجرا می‌شود. یک‌بار راه‌اندازی می‌کنید و همان‌جا می‌ماند.
 
 **گزینه A — دانلود نسخه آماده (پیشنهادی):**
 
-1. به [صفحه Releases](https://github.com/nullroute-lab/GooseRelayVPN/releases) بروید.
+1. به [صفحه Releases](https://github.com/nullroute-lab/ChaparCore/releases) بروید.
 2. آرشیو مناسب سیستم‌عامل خود را دانلود کنید:
-   - Windows: `GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-   - macOS (Intel): `GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-   - macOS (M1/M2/M3): `GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-   - Linux: `GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-   - Android / Termux (arm64): `GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
+   - Windows: `ChaparCore-client-vX.Y.Z-windows-amd64.zip`
+   - macOS (Intel): `ChaparCore-client-vX.Y.Z-darwin-amd64.tar.gz`
+   - macOS (M1/M2/M3): `ChaparCore-client-vX.Y.Z-darwin-arm64.tar.gz`
+   - Linux: `ChaparCore-client-vX.Y.Z-linux-amd64.tar.gz`
+   - Android / Termux (arm64): `ChaparCore-client-vX.Y.Z-android-arm64.tar.gz`
 3. برای **سرور**، باینری مناسب سیستم‌عامل VPS خود را دانلود کنید:
    - **لینوکس (رایج‌ترین):**
      ```bash
-     wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
-     tar -xzf GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz
+     wget https://github.com/nullroute-lab/ChaparCore/releases/latest/download/ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz
+     tar -xzf ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz
      ```
-   - **ویندوز سرور:** فایل `GooseRelayVPN-server-vX.Y.Z-windows-amd64.zip` را از صفحه Releases دانلود کنید و آن را در پوشه‌ای مثل `C:\goose-relay\` اکسترکت کنید. برای راه‌اندازی سرویس، مرحله ۸ (ویندوز) را ببینید.
+   - **ویندوز سرور:** فایل `ChaparCore-server-vX.Y.Z-windows-amd64.zip` را از صفحه Releases دانلود کنید و آن را در پوشه‌ای مثل `C:\chapar-core\` اکسترکت کنید. برای راه‌اندازی سرویس، مرحله ۸ (ویندوز) را ببینید.
 
    (عدد `vX.Y.Z` را با آخرین نسخه در صفحه Releases جایگزین کنید.)
 
 > 💡 **اگر صفحه Releases باز نمی‌شود**، می‌توانید مستقیماً با لینک‌های زیر دانلود کنید (`vX.Y.Z` را با آخرین نسخه جایگزین کنید):
-> - **کلاینت — ویندوز:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-windows-amd64.zip`
-> - **کلاینت — macOS (Apple Silicon):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-arm64.tar.gz`
-> - **کلاینت — macOS (Intel):** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-darwin-amd64.tar.gz`
-> - **کلاینت — لینوکس:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-linux-amd64.tar.gz`
-> - **کلاینت — اندروید/Termux:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-client-vX.Y.Z-android-arm64.tar.gz`
-> - **سرور — لینوکس:** `https://github.com/nullroute-lab/GooseRelayVPN/releases/download/vX.Y.Z/GooseRelayVPN-server-vX.Y.Z-linux-amd64.tar.gz`
+> - **کلاینت — ویندوز:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-windows-amd64.zip`
+> - **کلاینت — macOS (Apple Silicon):** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-darwin-arm64.tar.gz`
+> - **کلاینت — macOS (Intel):** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-darwin-amd64.tar.gz`
+> - **کلاینت — لینوکس:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-linux-amd64.tar.gz`
+> - **کلاینت — اندروید/Termux:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-client-vX.Y.Z-android-arm64.tar.gz`
+> - **سرور — لینوکس:** `https://github.com/nullroute-lab/ChaparCore/releases/download/vX.Y.Z/ChaparCore-server-vX.Y.Z-linux-amd64.tar.gz`
 
 **گزینه B — ساخت از سورس (Go 1.22+) — توصیه نمی‌شود، ممکن است ناپایدار باشد:**
 
 ```bash
-git clone https://github.com/nullroute-lab/GooseRelayVPN.git
-cd GooseRelayVPN
-go build -o goose-client ./cmd/client
-go build -o goose-server ./cmd/server
+git clone https://github.com/nullroute-lab/ChaparCore.git
+cd ChaparCore
+go build -o chapar-client ./cmd/client
+go build -o chapar-server ./cmd/server
 ```
 
 **گزینه C — اجرای فقط سرور با Docker (GHCR):**
 
-اگر روی VPS استفاده از کانتینر را ترجیح می‌دهید، می‌توانید `goose-server` را مستقیم از GHCR اجرا کنید:
+اگر روی VPS استفاده از کانتینر را ترجیح می‌دهید، می‌توانید `chapar-server` را مستقیم از GHCR اجرا کنید:
 
 ```bash
-docker pull ghcr.io/nullroute-lab/gooserelayvpn-server:latest
+docker pull ghcr.io/nullroute-lab/chaparcore-server:latest
 ```
 
 ### مرحله ۳: ساخت یک کلید مخفی
@@ -243,7 +243,7 @@ sudo systemctl restart docker
 **۲. راه‌اندازی پوشه و فایل پیکربندی:**
 
 ```bash
-sudo mkdir -p /opt/goose-server && cd /opt/goose-server
+sudo mkdir -p /opt/chapar-server && cd /opt/chapar-server
 ```
 
 فایل `server_config.json` را بسازید و تنظیمات JSON سرور خود را اضافه کنید (مطمئن شوید IP به صورت `"0.0.0.0"` و پورت `8443` باشد، و `tunnel_key` را مطابق کلاینت تنظیم کنید).
@@ -254,9 +254,9 @@ sudo mkdir -p /opt/goose-server && cd /opt/goose-server
 
 ```yaml
 services:
-  goose-server:
-    image: ghcr.io/nullroute-lab/gooserelayvpn-server:latest
-    container_name: goose-server
+  chapar-server:
+    image: ghcr.io/nullroute-lab/chaparcore-server:latest
+    container_name: chapar-server
     restart: unless-stopped
     network_mode: "host"
     volumes:
@@ -273,7 +273,7 @@ sudo docker compose up -d
 
 هرگاه نسخه جدیدی منتشر شد، فقط کافیست این دستور را اجرا کنید:
 ```bash
-cd /opt/goose-server && sudo docker compose pull && sudo docker compose up -d
+cd /opt/chapar-server && sudo docker compose pull && sudo docker compose up -d
 ```
 
 بررسی صحت اجرا از روی سیستم خودتان:
@@ -284,11 +284,11 @@ curl http://YOUR.VPS.IP:8443/healthz
 
 ### مرحله ۸: (اختیاری) ویندوز سرور: اجرای خودکار سرور بعد از ریبوت (NSSM)
 
-اگر VPS شما **ویندوز سرور** دارد، به جای systemd از [NSSM](https://nssm.cc) (Non-Sucking Service Manager) استفاده کنید تا `goose-server` را به عنوان یک سرویس ویندوز ثبت کنید. فایل `goose-server.exe` یک باینری ساده Go است و نیازی به نصب ندارد.
+اگر VPS شما **ویندوز سرور** دارد، به جای systemd از [NSSM](https://nssm.cc) (Non-Sucking Service Manager) استفاده کنید تا `chapar-server` را به عنوان یک سرویس ویندوز ثبت کنید. فایل `chapar-server.exe` یک باینری ساده Go است و نیازی به نصب ندارد.
 
 **۱. باز کردن پورت ۸۴۴۳ در فایروال ویندوز** (با دسترسی Administrator در Command Prompt):
 ```cmd
-netsh advfirewall firewall add rule name="GooseRelayVPN" protocol=TCP dir=in localport=8443 action=allow
+netsh advfirewall firewall add rule name="ChaparCore" protocol=TCP dir=in localport=8443 action=allow
 ```
 همچنین یک قانون ورودی TCP/8443 در پنل فایروال ارائه‌دهنده ابری خود اضافه کنید (Security Groups / Firewall Rules).
 
@@ -296,23 +296,23 @@ netsh advfirewall firewall add rule name="GooseRelayVPN" protocol=TCP dir=in loc
 
 **۳. ثبت و شروع سرویس** (با دسترسی Administrator):
 ```cmd
-C:\nssm\win64\nssm.exe install GooseRelayVPN "C:\goose-relay\goose-server.exe"
-C:\nssm\win64\nssm.exe set GooseRelayVPN AppParameters "-config C:\goose-relay\server_config.json"
-C:\nssm\win64\nssm.exe set GooseRelayVPN AppDirectory "C:\goose-relay"
-C:\nssm\win64\nssm.exe set GooseRelayVPN Start SERVICE_AUTO_START
-C:\nssm\win64\nssm.exe start GooseRelayVPN
+C:\nssm\win64\nssm.exe install ChaparCore "C:\chapar-core\chapar-server.exe"
+C:\nssm\win64\nssm.exe set ChaparCore AppParameters "-config C:\chapar-core\server_config.json"
+C:\nssm\win64\nssm.exe set ChaparCore AppDirectory "C:\chapar-core"
+C:\nssm\win64\nssm.exe set ChaparCore Start SERVICE_AUTO_START
+C:\nssm\win64\nssm.exe start ChaparCore
 ```
 
 **۴. بررسی اجرا بودن سرویس:**
 ```cmd
-C:\nssm\win64\nssm.exe status GooseRelayVPN
+C:\nssm\win64\nssm.exe status ChaparCore
 curl http://YOUR.VPS.IP:8443/healthz
 ```
 
 برای توقف یا حذف سرویس:
 ```cmd
-C:\nssm\win64\nssm.exe stop GooseRelayVPN
-C:\nssm\win64\nssm.exe remove GooseRelayVPN confirm
+C:\nssm\win64\nssm.exe stop ChaparCore
+C:\nssm\win64\nssm.exe remove ChaparCore confirm
 ```
 
 ### مرحله ۹: اجرای کلاینت روی کامپیوتر (روش Systemd و Crontab برای لینوکس)
@@ -321,8 +321,8 @@ C:\nssm\win64\nssm.exe remove GooseRelayVPN confirm
 
 **۱. انتقال باینری به `/usr/local/bin`:**
 ```bash
-sudo mv goose-client /usr/local/bin/
-sudo chmod +x /usr/local/bin/goose-client
+sudo mv chapar-client /usr/local/bin/
+sudo chmod +x /usr/local/bin/chapar-client
 ```
 
 **۲. تنظیمات فایل Config:**
@@ -332,16 +332,16 @@ sudo cp client_config.json /etc/goose/
 ```
 
 **۳. ساخت سرویس Systemd:**
-فایل `/etc/systemd/system/goose-client.service` را بسازید و این محتوا را قرار دهید:
+فایل `/etc/systemd/system/chapar-client.service` را بسازید و این محتوا را قرار دهید:
 
 ```ini
 [Unit]
-Description=GooseRelayVPN client
+Description=ChaparCore client
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/goose-client -config /etc/goose/client_config.json
+ExecStart=/usr/local/bin/chapar-client -config /etc/goose/client_config.json
 Restart=always
 LimitNOFILE=1048576
 
@@ -352,19 +352,19 @@ WantedBy=multi-user.target
 **۴. فعال‌سازی و اجرای سرویس:**
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now goose-client
+sudo systemctl enable --now chapar-client
 ```
 
 **۵. اضافه کردن Crontab برای ری‌استارت روزانه:**
 دستور `crontab -e` (یا `sudo crontab -e` اگر کاربر root هستید) را اجرا کنید و این خط را برای ری‌استارت در ساعت ۳ صبح وارد کنید:
 ```bash
-0 3 * * * /usr/bin/systemctl restart goose-client > /dev/null 2>&1
+0 3 * * * /usr/bin/systemctl restart chapar-client > /dev/null 2>&1
 ```
 
 باید خروجی‌ای شبیه این ببینید:
 
 ```
-CLIENT  INFO    GooseRelayVPN client starting
+CLIENT  INFO    ChaparCore client starting
 CLIENT  INFO    SOCKS5 proxy: socks5://127.0.0.1:1080
 CLIENT  INFO    pre-flight OK: relay healthy, AES key matches end-to-end
 CLIENT  INFO    ready: local SOCKS5 is listening on 127.0.0.1:1080
@@ -392,10 +392,10 @@ pkg install wget tar -y
 
 **۲. دانلود و استخراج کلاینت:**
 ```bash
-wget https://github.com/nullroute-lab/GooseRelayVPN/releases/latest/download/GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
-tar -xzvf GooseRelayVPN-client-v1.6.0-android-arm64.tar.gz
-cd GooseRelayVPN-client-v1.6.0-android-arm64/
-chmod +x goose-client
+wget https://github.com/nullroute-lab/ChaparCore/releases/latest/download/ChaparCore-client-v1.6.0-android-arm64.tar.gz
+tar -xzvf ChaparCore-client-v1.6.0-android-arm64.tar.gz
+cd ChaparCore-client-v1.6.0-android-arm64/
+chmod +x chapar-client
 ```
 
 **۳. ساخت کانفیگ:**
@@ -407,7 +407,7 @@ nano client_config.json
 
 **۴. اجرای کلاینت:**
 ```bash
-./goose-client -config client_config.json
+./chapar-client -config client_config.json
 ```
 
 وقتی `ready: local SOCKS5 is listening on 127.0.0.1:1080` را دیدید یعنی همه چیز درست است.
@@ -510,7 +510,7 @@ nano client_config.json
 
 ```
 ┌─────────┐   ┌──────────────┐   ┌──────────────┐   ┌─────────────┐   ┌──────────┐
-│ Browser │──►│ goose-client │──►│ Google edge  │──►│ Apps Script │──►│  Your    │──► Internet
+│ Browser │──►│ chapar-client │──►│ Google edge  │──►│ Apps Script │──►│  Your    │──► Internet
 │  / App  │◄──│  (SOCKS5)    │◄──│ TLS, fronted │◄──│  doPost()   │◄──│  VPS     │◄──
 └─────────┘   └──────────────┘   └──────────────┘   └─────────────┘   └──────────┘
               AES-256-GCM         SNI=www.google     dumb forwarder    decrypt +
@@ -536,7 +536,7 @@ nano client_config.json
 ## فایل‌های پروژه
 
 ```
-GooseRelayVPN/
+ChaparCore/
 ├── cmd/
 │   ├── client/main.go              # Entry point: SOCKS5 listener + carrier loop
 │   └── server/main.go              # Entry point: VPS HTTP handler
@@ -556,7 +556,7 @@ GooseRelayVPN/
 ├── apps_script/
 │   └── Code.gs                     # ~30-line dumb forwarder
 ├── scripts/
-│   └── goose-relay.service         # systemd unit template
+│   └── chapar-core.service         # systemd unit template
 ├── client_config.example.json
 └── server_config.example.json
 ```
@@ -567,7 +567,7 @@ GooseRelayVPN/
 
 | مشکل | راه‌حل |
 |---|---|
-| موقع اجرای `goose-server` یا `goose-client` خطای `cannot execute binary file: Exec format error` می‌گیرید | آرشیو اشتباهی برای OS/معماری خود دانلود کرده‌اید. اسم پوشه نشان می‌دهد چه چیزی گرفته‌اید — مثلاً `…-darwin-amd64` باینری **macOS** است و روی لینوکس اجرا نمی‌شود. آرشیو مناسب را دوباره دانلود کنید (VPS لینوکسی → `linux-amd64`؛ مک Apple Silicon → `darwin-arm64`؛ Termux → `android-arm64`). |
+| موقع اجرای `chapar-server` یا `chapar-client` خطای `cannot execute binary file: Exec format error` می‌گیرید | آرشیو اشتباهی برای OS/معماری خود دانلود کرده‌اید. اسم پوشه نشان می‌دهد چه چیزی گرفته‌اید — مثلاً `…-darwin-amd64` باینری **macOS** است و روی لینوکس اجرا نمی‌شود. آرشیو مناسب را دوباره دانلود کنید (VPS لینوکسی → `linux-amd64`؛ مک Apple Silicon → `darwin-arm64`؛ Termux → `android-arm64`). |
 | Pre-flight fails: `cannot reach Apps Script` | اینترنت شما به گوگل دسترسی ندارد. `google_host` را چک کنید — یک IP دیگر از رنج 216.239.x.120 امتحان کنید. |
 | Pre-flight fails: `HTTP 204 — key mismatch` | `tunnel_key` در `client_config.json` با `server_config.json` روی VPS یکسان نیست. باید بایت‌به‌بایت برابر باشند. |
 | Pre-flight fails: `Apps Script cannot reach your VPS` | پورت 8443 روی VPS قابل دسترسی نیست. `sudo ufw allow 8443/tcp` را اجرا کنید و فایروال ارائه‌دهنده ابری را هم بررسی کنید. |
@@ -599,7 +599,7 @@ GooseRelayVPN/
 
 Pull request خوش‌آمد است. برای هر تغییری که به carrier loop، session layer یا poll behavior مربوط می‌شود، لطفاً نتایج benchmark را هم ضمیمه کنید تا بازبینی‌کنندگان بتوانند تأثیر عملکردی را ارزیابی کنند.
 
-پوشه `bench/` یک harness end-to-end دارد که باینری‌های واقعی `goose-client` و `goose-server` را در حالت loopback راه‌اندازی می‌کند و throughput، TTFB، session rate و idle CPU را اندازه می‌گیرد.
+پوشه `bench/` یک harness end-to-end دارد که باینری‌های واقعی `chapar-client` و `chapar-server` را در حالت loopback راه‌اندازی می‌کند و throughput، TTFB، session rate و idle CPU را اندازه می‌گیرد.
 
 ```bash
 # ساخت باینری‌ها و اجرای کامل benchmark

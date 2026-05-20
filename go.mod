@@ -1,4 +1,4 @@
-module github.com/nullroute-lab/GooseRelayVPN
+module github.com/nullroute-lab/ChaparCore
 
 go 1.22
 
