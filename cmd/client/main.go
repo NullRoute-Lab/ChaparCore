@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nullroute-lab/ChaparCore/internal/carrier"
-	"github.com/nullroute-lab/ChaparCore/internal/config"
-	"github.com/nullroute-lab/ChaparCore/internal/branding"
+	"github.com/nullroute-lab/chaparcore/internal/carrier"
+	"github.com/nullroute-lab/chaparcore/internal/config"
+	"github.com/nullroute-lab/chaparcore/internal/branding"
 	"runtime"
-	"github.com/nullroute-lab/ChaparCore/internal/session"
-	"github.com/nullroute-lab/ChaparCore/internal/socks"
+	"github.com/nullroute-lab/chaparcore/internal/session"
+	"github.com/nullroute-lab/chaparcore/internal/socks"
 )
 
 
@@ -165,8 +165,11 @@ func main() {
 		MaxGlobalWorkers:     cfg.MaxGlobalWorkers,
 		IdleTimeoutMs:        cfg.IdleTimeoutMs,
 		SleepStepMs:          cfg.SleepStepMs,
+		AutoTuneMinSleepMs:   cfg.AutoTuneMinSleepMs,
+		AutoTuneMaxSleepMs:   cfg.AutoTuneMaxSleepMs,
 		IdleSessionTimeoutMs: cfg.IdleSessionTimeoutMs,
 		FlushSizeKB:          cfg.FlushSizeKB,
+		CompressionEntropyThreshold: cfg.CompressionEntropyThreshold,
 		JitterMin:            time.Duration(cfg.JitterMinMs) * time.Millisecond,
 		JitterMax:            time.Duration(cfg.JitterMaxMs) * time.Millisecond,
 		Fronting: carrier.FrontingConfig{

@@ -55,8 +55,13 @@ type Client struct {
 	MaxGlobalWorkers int
 
 	// Adaptive Polling / Exponential Backoff
-	IdleTimeoutMs int
-	SleepStepMs   int
+	IdleTimeoutMs      int
+	SleepStepMs        int
+	AutoTuneMinSleepMs int
+	AutoTuneMaxSleepMs int
+
+	// Compression
+	CompressionEntropyThreshold int
 
 	// Coalesce Jitter (Timing Disruption)
 	JitterMinMs int

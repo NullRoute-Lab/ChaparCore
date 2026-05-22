@@ -10,10 +10,10 @@ import (
 	"net"
 	"strings"
 
-	"github.com/nullroute-lab/ChaparCore/internal/config"
-	"github.com/nullroute-lab/ChaparCore/internal/branding"
+	"github.com/nullroute-lab/chaparcore/internal/config"
+	"github.com/nullroute-lab/chaparcore/internal/branding"
 	"runtime"
-	"github.com/nullroute-lab/ChaparCore/internal/exit"
+	"github.com/nullroute-lab/chaparcore/internal/exit"
 )
 
 

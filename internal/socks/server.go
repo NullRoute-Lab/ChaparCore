@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/nullroute-lab/ChaparCore/internal/session"
+	"github.com/nullroute-lab/chaparcore/internal/session"
 	"github.com/things-go/go-socks5"
 	"github.com/things-go/go-socks5/statute"
 )

@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nullroute-lab/ChaparCore/internal/frame"
-	"github.com/nullroute-lab/ChaparCore/internal/protocol"
-	"github.com/nullroute-lab/ChaparCore/internal/session"
+	"github.com/nullroute-lab/chaparcore/internal/frame"
+	"github.com/nullroute-lab/chaparcore/internal/protocol"
+	"github.com/nullroute-lab/chaparcore/internal/session"
 	"golang.org/x/net/proxy"
 )
 
@@ -116,11 +116,12 @@ const (
 
 // Config is the VPS server's configuration.
 type Config struct {
-	ListenAddr    string // "0.0.0.0:8443"
-	AESKeyHex     string // 64-char hex
-	DebugTiming   bool   // when true, log per-session dial breakdown and first-read latency
-	UpstreamProxy string // optional "host:port" of a local SOCKS5 proxy (e.g. WARP on 127.0.0.1:40000)
-	Version       string // build version string (exposed in /healthz and version probe)
+	ListenAddr                  string // "0.0.0.0:8443"
+	AESKeyHex                   string // 64-char hex
+	DebugTiming                 bool   // when true, log per-session dial breakdown and first-read latency
+	UpstreamProxy               string // optional "host:port" of a local SOCKS5 proxy (e.g. WARP on 127.0.0.1:40000)
+	Version                     string // build version string (exposed in /healthz and version probe)
+	CompressionEntropyThreshold int
 }
 
 // Server holds the per-process session state.
@@ -388,7 +389,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			respBody, err := frame.EncodeBatch(s.aead, clientID, txFrames)
+			respBody, err := frame.EncodeBatch(s.aead, clientID, txFrames, s.cfg.CompressionEntropyThreshold)
 			if err != nil {
 				log.Printf("[exit] encode response: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -408,7 +409,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			// Empty response (still a valid base64-encoded zero-frame batch).
-			respBody, _ := frame.EncodeBatch(s.aead, clientID, nil)
+			respBody, _ := frame.EncodeBatch(s.aead, clientID, nil, s.cfg.CompressionEntropyThreshold)
 			w.Header().Set("Content-Type", "text/plain")
 			_, _ = w.Write(respBody)
 			return

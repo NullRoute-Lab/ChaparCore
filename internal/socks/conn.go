@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nullroute-lab/ChaparCore/internal/session"
+	"github.com/nullroute-lab/chaparcore/internal/session"
 )
 
 // VirtualConn fulfills net.Conn by reading from session.RxChan and writing to

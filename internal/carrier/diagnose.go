@@ -9,8 +9,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/nullroute-lab/ChaparCore/internal/frame"
-	"github.com/nullroute-lab/ChaparCore/internal/protocol"
+	"github.com/nullroute-lab/chaparcore/internal/frame"
+	"github.com/nullroute-lab/chaparcore/internal/protocol"
 )
 
 // Diagnose performs a one-shot end-to-end health check against the first
@@ -81,7 +81,7 @@ func (c *Client) Diagnose(ctx context.Context) error {
 		Flags:     frame.FlagACK,
 		Payload:   probePayload,
 	}
-	body, err := frame.EncodeBatch(c.aead, c.clientID, []*frame.Frame{probeFrame})
+	body, err := frame.EncodeBatch(c.aead, c.clientID, []*frame.Frame{probeFrame}, c.cfg.CompressionEntropyThreshold)
 	if err != nil {
 		return fmt.Errorf("internal: cannot encode probe batch: %w", err)
 	}

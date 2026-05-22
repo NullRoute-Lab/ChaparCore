@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nullroute-lab/ChaparCore/internal/frame"
-	"github.com/nullroute-lab/ChaparCore/internal/session"
+	"github.com/nullroute-lab/chaparcore/internal/frame"
+	"github.com/nullroute-lab/chaparcore/internal/session"
 )
 
 const exitTimingTestKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -43,7 +43,7 @@ func invokeExitTunnel(tb testing.TB, s *Server, c *frame.Crypto, frames []*frame
 	tb.Helper()
 	var clientID [frame.ClientIDLen]byte
 	clientID[0] = 0x01 // distinguish from the all-zero "default" id
-	body, err := frame.EncodeBatch(c, clientID, frames)
+	body, err := frame.EncodeBatch(c, clientID, frames, 224)
 	if err != nil {
 		tb.Fatalf("encode request: %v", err)
 	}
@@ -166,7 +166,7 @@ func startMarkerServer(tb testing.TB, marker []byte, writeDelay time.Duration) (
 // decoded downstream frames the server replied with.
 func invokeAsClient(tb testing.TB, s *Server, c *frame.Crypto, clientID [frame.ClientIDLen]byte, frames []*frame.Frame) []*frame.Frame {
 	tb.Helper()
-	body, err := frame.EncodeBatch(c, clientID, frames)
+	body, err := frame.EncodeBatch(c, clientID, frames, 224)
 	if err != nil {
 		tb.Fatalf("encode: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestExit_SYNDialsRunInParallel(t *testing.T) {
 	}
 
 	muteLogsForBench(t)
-	body, err := frame.EncodeBatch(c, clientID, frames)
+	body, err := frame.EncodeBatch(c, clientID, frames, 224)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
