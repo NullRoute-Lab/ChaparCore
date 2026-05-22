@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nullroute-lab/ChaparCore/internal/frame"
+	"github.com/nullroute-lab/chaparcore/internal/frame"
 )
 
 func sid(b byte) [frame.SessionIDLen]byte {

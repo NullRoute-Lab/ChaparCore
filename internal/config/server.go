@@ -15,10 +15,11 @@ import (
 
 // Server is the VPS exit server config.
 type Server struct {
-	ListenAddr    string
-	AESKeyHex     string
-	DebugTiming   bool
-	UpstreamProxy string // optional socks5://host:port; when set, all outbound dials go through this proxy
+	ListenAddr                  string
+	AESKeyHex                   string
+	DebugTiming                 bool
+	UpstreamProxy               string // optional socks5://host:port; when set, all outbound dials go through this proxy
+	CompressionEntropyThreshold int
 }
 
 type serverFile struct {
@@ -35,6 +36,9 @@ type serverFile struct {
 	// (e.g. Cloudflare WARP on socks5://127.0.0.1:40000). Useful when the VPS
 	// datacenter IP is blocked by certain sites.
 	UpstreamProxy string `json:"upstream_proxy"`
+
+	// Compression
+	CompressionEntropyThreshold int `json:"compression_entropy_threshold"`
 
 	// Legacy keys kept as fallback for existing deployments.
 	ListenAddr string `json:"listen_addr"`
@@ -105,11 +109,17 @@ func LoadServer(path string) (*Server, error) {
 		upstreamProxy = u.Host
 	}
 
+	compressionEntropyThreshold := f.CompressionEntropyThreshold
+	if compressionEntropyThreshold <= 0 {
+		compressionEntropyThreshold = 224
+	}
+
 	c := Server{
-		ListenAddr:    net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
-		AESKeyHex:     key,
-		DebugTiming:   f.DebugTiming,
-		UpstreamProxy: upstreamProxy,
+		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
+		AESKeyHex:                   key,
+		DebugTiming:                 f.DebugTiming,
+		UpstreamProxy:               upstreamProxy,
+		CompressionEntropyThreshold: compressionEntropyThreshold,
 	}
 	return &c, nil
 }

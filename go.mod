@@ -1,4 +1,4 @@
-module github.com/nullroute-lab/ChaparCore
+module github.com/nullroute-lab/chaparcore
 
 go 1.22
 
