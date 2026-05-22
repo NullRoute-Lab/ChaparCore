@@ -138,6 +138,11 @@ type clientFile struct {
 	// Adaptive Polling
 	IdleTimeoutMs int `json:"idle_timeout_ms"`
 	SleepStepMs   int `json:"sleep_step_ms"`
+	AutoTuneMinSleepMs int `json:"autotune_min_sleep_ms"`
+	AutoTuneMaxSleepMs int `json:"autotune_max_sleep_ms"`
+
+	// Compression
+	CompressionEntropyThreshold int `json:"compression_entropy_threshold"`
 
 	// Timing disruption for anti-correlation
 	JitterMinMs int `json:"jitter_min_ms"`
@@ -487,6 +492,23 @@ func LoadClient(path string) (*Client, error) {
 		return nil, fmt.Errorf("idle_session_timeout_ms must be >= 0 in %s (got %d)", path, f.IdleSessionTimeoutMs)
 	}
 
+	autoTuneMinSleepMs := f.AutoTuneMinSleepMs
+	if autoTuneMinSleepMs <= 0 {
+		autoTuneMinSleepMs = 2
+	}
+	autoTuneMaxSleepMs := f.AutoTuneMaxSleepMs
+	if autoTuneMaxSleepMs <= 0 {
+		autoTuneMaxSleepMs = 250
+	}
+	if autoTuneMaxSleepMs < autoTuneMinSleepMs {
+		return nil, fmt.Errorf("autotune_max_sleep_ms (%d) must be >= autotune_min_sleep_ms (%d) in %s", autoTuneMaxSleepMs, autoTuneMinSleepMs, path)
+	}
+
+	compressionEntropyThreshold := f.CompressionEntropyThreshold
+	if compressionEntropyThreshold <= 0 {
+		compressionEntropyThreshold = 224
+	}
+
 	c := Client{
 		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
 		GoogleIP:                    googleIP,
@@ -504,6 +526,9 @@ func LoadClient(path string) (*Client, error) {
 		MaxGlobalWorkers:            f.MaxGlobalWorkers,
 		IdleTimeoutMs:               idleTimeoutMs,
 		SleepStepMs:                 sleepStepMs,
+		AutoTuneMinSleepMs:          autoTuneMinSleepMs,
+		AutoTuneMaxSleepMs:          autoTuneMaxSleepMs,
+		CompressionEntropyThreshold: compressionEntropyThreshold,
 		JitterMinMs:                 f.JitterMinMs,
 		JitterMaxMs:                 f.JitterMaxMs,
 		MaxActiveSessions:           maxActiveSessions,
