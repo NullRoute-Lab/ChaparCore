@@ -208,7 +208,7 @@ func (s *Session) EnqueueInitialData(data []byte) {
 		return
 	}
 	// Prepend to txBuf so it's picked up by the first DrainTx call.
-	s.txBuf = append(data, s.txBuf...)
+	s.txBuf = append(s.txBuf, data...)
 	if s.firstQueuedAt.IsZero() {
 		s.firstQueuedAt = time.Now()
 	}

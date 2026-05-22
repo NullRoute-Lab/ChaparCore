@@ -1,43 +1,40 @@
 {
-  "debug_timing": false,
   "socks_host": "127.0.0.1",
   "socks_port": 1080,
   "google_host": "216.239.38.120",
   "sni": ["www.google.com", "mail.google.com", "accounts.google.com"],
+  "_comment_transport_mode": "Options: 'apps_script' or 'direct_post'. Use 'apps_script' to tunnel traffic inside Google's CDN infrastructure to bypass severe state DPI censorship and IP filtering. Use 'direct_post' for direct-to-VPS high-speed low-latency transfers if the VPS IP is completely unfiltered.",
+  "transport_mode": "apps_script",
+  "_comment_debug_timing": "When true, enables aggressive real-time latency telemetry logging, outputting rolling window percentile metrics (P50, P95, P99) directly to the console or logcat. Set to false in production to conserve device resources.",
+  "debug_timing": false,
   "script_keys": [
-    {"id": "REPLACE_WITH_DEPLOYMENT_ID", "account": "acct-a"},
-    {"id": "OPTIONAL_SECOND_DEPLOYMENT_ID", "account": "acct-a"},
-    {"id": "OPTIONAL_THIRD_DEPLOYMENT_ID", "account": "acct-b"}
+    {"id": "REPLACE_WITH_DEPLOYMENT_ID", "account": "acct-a"}
   ],
-  "tunnel_key": "REPLACE_WITH_OUTPUT_OF_scripts_gen-key.sh",
-
-  "_comment_socks_auth": "Optional: require SOCKS5 username/password (RFC 1929). Both fields must be set together or both omitted.",
+  "tunnel_key": "REPLACE_WITH_64_HEX_CHARACTER_RANDOM_KEY",
   "socks_user": "",
   "socks_pass": "",
-
-  "_comment_adaptive_polling": "Optional: adaptive polling drops the poll interval to sleep_step_ms if the client is completely idle for idle_timeout_ms. Prevents quota exhaustion.",
-  "idle_timeout_ms": 3000,
-  "sleep_step_ms": 3000,
-
-  "_comment_coalesce": "Optional: adaptive uplink coalescing. Set coalesce_step_ms to a positive number to make a burst of TX operations wait a little for more operations before sending, which reduces Apps Script calls. A good starting range is 20-40 ms. Set it to 0 to turn coalescing off.",
+  "_comment_performance_mode": "Options: 'latency' or 'throughput'. 'latency' minimizes server coalesce windows to 0 for instant chat/interactive surfing. 'throughput' maximizes bulk download capacity (e.g., YouTube/Instagram) by allowing larger packet grouping windows and parallel pooling.",
+  "performance_mode": "latency",
+  "_comment_auto_tune": "When true, dynamically scales polling intervals based on P95 latency summaries. Set to false to strictly lock scheduling onto manual configurations.",
+  "auto_tune": false,
+  "autotune_min_sleep_ms": 2,
+  "autotune_max_sleep_ms": 250,
+  "_comment_compression_entropy_threshold": "Threshold value (0-255, default 224). Intelligently skips Zstd compression over pre-encrypted data blocks to conserve client device battery and server CPU cycles.",
+  "compression_entropy_threshold": 224,
   "coalesce_step_ms": 20,
+  "workers_per_endpoint": 4,
+  "poll_idle_sleep_ms": 5,
+  "endpoint_blacklist_base_ms": 3000,
+  "endpoint_blacklist_max_ms": 3600000,
+  "endpoint_outage_grace_ms": 60000,
+  "max_request_bytes_pre_encode": 8388608,
 
-  "_comment_idle_slots": "Optional download-throughput tuning. Default 1 (safe). Raise to 2 if each account has 2+ deployments — this may increase download throughput; leave at 1 for accounts with one deployment. Max 3. Omitting the field is equivalent to 1.",
-  "idle_slots_per_bucket": 1,
-
-  "_comment_jitter": "Optional: cryptographic jitter bounds (ms) to disrupt traffic correlation. Requires math/big and crypto/rand to ensure cryptographic safety.",
   "jitter_min_ms": 5,
   "jitter_max_ms": 15,
-
-  "_comment_workers": "Optional: global limit for concurrent Zstd and AES operations. 0 = auto-scale based on runtime.NumCPU() * 8.",
-  "max_global_workers": 0,
-
-  "_comment_max_active_sessions": "Optional: Max concurrent sessions. 0 = auto scale. -1 = infinite / disable protection.",
-  "max_active_sessions": 0,
-
-  "_comment_flush_size_kb": "Optional: Threshold in KB to immediately flush the TX buffer. Default: 128.",
+  "max_active_sessions": 4000,
   "flush_size_kb": 128,
-
-  "_comment_idle_session_timeout_ms": "Optional: Time in milliseconds of zero RX/TX activity before an idle session is forcefully reaped. Default: 60000.",
+  "idle_slots_per_bucket": 1,
+  "idle_timeout_ms": 3000,
+  "sleep_step_ms": 3000,
   "idle_session_timeout_ms": 60000
 }
