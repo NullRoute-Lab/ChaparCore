@@ -96,10 +96,6 @@ var (
 		buf := make([]byte, 0, 64*1024)
 		return &buf
 	}}
-	encMarshaledPool = sync.Pool{New: func() interface{} {
-		buf := make([][]byte, 0, 32)
-		return &buf
-	}}
 	// zstdEncPool and zstdDecPool are used by EncodeBatch/DecodeBatch.
 	// Pooling avoids re-initialising the encoder's internal state on every batch.
 	// SpeedFastest (level 1) is ~2× faster than DEFLATE BestSpeed and produces
