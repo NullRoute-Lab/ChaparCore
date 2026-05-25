@@ -122,6 +122,7 @@ type Config struct {
 	UpstreamProxy               string // optional "host:port" of a local SOCKS5 proxy (e.g. WARP on 127.0.0.1:40000)
 	Version                     string // build version string (exposed in /healthz and version probe)
 	CompressionEntropyThreshold int
+	InitialResponseBytesPreEncode int
 }
 
 // Server holds the per-process session state.
@@ -294,7 +295,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.stats.requests.Add(1)
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxResponseBytesPreEncode+1024*1024))
 	if err != nil {
 		log.Printf("[exit] read body: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -348,11 +349,19 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	// the channel is not lost.
 	wakeCh := s.activityFor(clientID)
 
+		budget := s.cfg.InitialResponseBytesPreEncode
+		if budget <= 0 {
+			budget = 512 * 1024
+		}
+		if budget > maxResponseBytesPreEncode {
+			budget = maxResponseBytesPreEncode
+		}
+
 	// Active batches use a shorter wait to avoid stalling unrelated sessions,
 	// while empty polls keep long-poll behavior for push responsiveness.
 	deadline := time.Now().Add(s.drainWindow(rxFrames))
 	for {
-		txFrames, urgent := s.drainAll(clientID, maxResponseBytesPreEncode)
+			txFrames, urgent := s.drainAll(clientID, budget)
 		if len(txFrames) > 0 {
 			// Track running payload bytes so the coalesce loop respects the
 			// same response-size budget across multiple drainAll calls.
@@ -366,11 +375,11 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 			// 25ms wait there compounds latency across every TLS round-trip.
 			// Urgent batches (RSTs, first downstream after SYN) skip coalesce
 			// unconditionally so connection setup is not delayed.
-			if !urgent && len(txFrames) > coalesceMinFrames && totalBytes < maxResponseBytesPreEncode {
+				if !urgent && len(txFrames) > coalesceMinFrames && totalBytes < budget {
 				coalesceDeadline := time.Now().Add(s.coalesceDuration(len(txFrames)))
 			coalesceLoop:
 				for {
-					if time.Now().After(coalesceDeadline) || totalBytes >= maxResponseBytesPreEncode {
+						if time.Now().After(coalesceDeadline) || totalBytes >= budget {
 						break coalesceLoop
 					}
 					remainingCoalesce := time.Until(coalesceDeadline)
@@ -378,7 +387,7 @@ func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {
 					case <-r.Context().Done():
 						return
 					case <-wakeCh:
-						more, _ := s.drainAll(clientID, maxResponseBytesPreEncode-totalBytes)
+							more, _ := s.drainAll(clientID, budget-totalBytes)
 						for _, f := range more {
 							totalBytes += len(f.Payload)
 						}
