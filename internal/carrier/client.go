@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"runtime"
 	"sort"
@@ -68,6 +69,10 @@ const (
 	// or tail-latency events without changing protocol behavior.
 	endpointBlacklistBaseTTL = 3 * time.Second
 	endpointBlacklistMaxTTL  = 1 * time.Hour
+
+	// Max penalty duration when offline state is caused purely by local networking errors
+	// (DNS failure, unreachable router, etc.) so we recover instantly when wifi returns.
+	localNetworkOfflineBlacklistTTL = 15 * time.Second
 )
 
 // Config bundles everything the carrier needs to talk to the relay.
@@ -152,13 +157,16 @@ type relayEndpoint struct {
 	// Probe-Based Quota Recovery
 	quotaExhausted bool
 	probeAllowedAt time.Time
+
+	// Fast Local Network Blackout Recovery
+	localNetworkOffline bool
 }
 
 // workersPerEndpoint is the number of concurrent poll goroutines spawned for
 // each configured script URL. Total workers = workersPerEndpoint × len(endpoints).
 // Scaling with endpoint count means adding more deployment IDs increases
 // parallelism rather than just spreading the same fixed pool thinner.
-const workersPerEndpoint = 4
+const workersPerEndpoint = 3
 
 // waker is a broadcast notifier: Broadcast() wakes all goroutines currently
 // blocked on C() simultaneously, unlike a buffered chan which only wakes one.
@@ -245,6 +253,25 @@ type Client struct {
 
 	// Auto-Tuning state
 	pollIdleSleep atomic.Int64 // Int64 containing time.Duration
+
+	// Recovery probe
+	recoveryProbeAddr string
+}
+
+func recoveryProbeAddress(cfg Config) string {
+	var host string
+	if cfg.Fronting.GoogleIP != "" {
+		host = cfg.Fronting.GoogleIP
+	}
+	if host == "" {
+		return ""
+	}
+	_, _, err := net.SplitHostPort(host)
+	if err != nil {
+		// likely missing port, append 443
+		return net.JoinHostPort(host, "443")
+	}
+	return host
 }
 
 // clientStats holds atomic counters surfaced periodically by statsLoop.
@@ -331,7 +358,7 @@ func New(cfg Config) (*Client, error) {
 	// camped — the alternative (fixed worker count) starves session
 	// establishment under TX bursts when more workers are tied to long
 	// polls.
-	numWorkers := (workersPerEndpoint + idleSlotsPerBucket - 1) * bucketCount
+	numWorkers := workersPerEndpoint * len(endpoints)
 	log.Printf("[carrier] %d worker(s) across %d account bucket(s) (%d endpoint(s)), %d idle slot(s)/bucket",
 		numWorkers, bucketCount, len(endpoints), idleSlotsPerBucket)
 	if labeled == 0 && len(endpoints) > 1 {
@@ -360,6 +387,7 @@ func New(cfg Config) (*Client, error) {
 		coalesceStep:       cfg.CoalesceStep,
 		coalesceMax:        cfg.CoalesceMax,
 		flushSizeBytes:     cfg.FlushSizeKB * 1024,
+		recoveryProbeAddr:  recoveryProbeAddress(cfg),
 	}
 
 	cClient.lastActivity.Store(time.Now().UnixNano())
@@ -496,6 +524,14 @@ func (c *Client) Run(ctx context.Context) error {
 			defer wg.Done()
 			c.runAutoTuneLoop(ctx)
 		}()
+	// Fast Local Network Blackout Recovery loop.
+	if c.recoveryProbeAddr != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.runEndpointRecoveryLoop(ctx)
+		}()
+	}
 	wg.Wait()
 	return ctx.Err()
 }
@@ -688,7 +724,11 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 				if ctx.Err() != nil {
 					return true, false
 				}
-				c.markEndpointFailure(endpointIdx)
+					if isLocalNetworkOffline(err) {
+						c.markEndpointLocalNetworkFailure(endpointIdx)
+					} else {
+						c.markEndpointFailure(endpointIdx)
+					}
 				if attempt < maxAttempts {
 					log.Printf("[carrier] relay request failed via %s (attempt %d/%d): %v; retrying alternate script", shortScriptKey(scriptURL), attempt, maxAttempts, err)
 					return false, false
@@ -698,10 +738,14 @@ func (c *Client) pollOnce(ctx context.Context) bool {
 				return true, false
 			}
 
-			respBody, readErr := io.ReadAll(resp.Body)
+			respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxRelayResponseBodyBytes))
 			_ = resp.Body.Close()
 			if readErr != nil {
-				c.markEndpointFailure(endpointIdx)
+					if isLocalNetworkOffline(readErr) {
+						c.markEndpointLocalNetworkFailure(endpointIdx)
+					} else {
+						c.markEndpointFailure(endpointIdx)
+					}
 				if attempt < maxAttempts {
 					log.Printf("[carrier] failed to read relay response via %s (attempt %d/%d): %v; retrying alternate script", shortScriptKey(scriptURL), attempt, maxAttempts, readErr)
 					return false, false
@@ -1345,6 +1389,10 @@ func isLikelyNonBatchRelayPayload(body []byte) bool {
 	if t[0] == '{' || t[0] == '[' || bytes.HasPrefix(t, []byte("HTTP/")) {
 		return true
 	}
+		// Legacy script error sentinels
+		if bytes.HasPrefix(l, []byte("exception:")) || bytes.HasPrefix(l, []byte("upstream fetch error:")) || bytes.HasPrefix(l, []byte("upstream status ")) {
+			return true
+		}
 	return false
 }
 
@@ -1451,6 +1499,18 @@ func classifyRelayErrorBody(body []byte) (reason string, hard bool) {
 		}
 	}
 
+	// ── Legacy script sentinels ────────────────────────────────────────────
+	legacyPatterns := []string{
+		"exception:",
+		"upstream fetch error:",
+		"upstream status ",
+	}
+	for _, p := range legacyPatterns {
+		if strings.Contains(lower, p) {
+			return "Legacy Apps Script error — your Code.gs needs to be redeployed. It returned naked strings instead of JSON", true
+		}
+	}
+
 	return "", false
 }
 
@@ -1482,4 +1542,107 @@ func cryptoRandDuration(min, maxDuration time.Duration) time.Duration {
 		return min
 	}
 	return min + time.Duration(n.Int64())
+}
+
+// isLocalNetworkOffline identifies errors indicating the client device has
+// lost internet access (e.g., wifi drop, airplane mode) versus the relay
+// itself failing.
+func isLocalNetworkOffline(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "network is unreachable") ||
+		strings.Contains(msg, "no route to host") ||
+		strings.Contains(msg, "connection refused")
+}
+
+// runEndpointRecoveryLoop polls a lightweight TCP endpoint when the local
+// network has been marked offline, instantly unblacklisting endpoints the
+// moment connectivity returns so we don't wait out a 15-second penalty box
+// just because the user toggled WiFi.
+func (c *Client) runEndpointRecoveryLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.endpointMu.Lock()
+			hasOffline := false
+			for i := range c.endpoints {
+				if c.endpoints[i].localNetworkOffline {
+					hasOffline = true
+					break
+				}
+			}
+			c.endpointMu.Unlock()
+
+			if !hasOffline {
+				continue
+			}
+
+			if c.runEndpointRecoveryProbeOnce(ctx) {
+				// Connectivity returned! Clear all offline flags and backoffs.
+				c.endpointMu.Lock()
+				cleared := 0
+				for i := range c.endpoints {
+					if c.endpoints[i].localNetworkOffline {
+						c.endpoints[i].localNetworkOffline = false
+						c.endpoints[i].blacklistedTill = time.Time{}
+						c.endpoints[i].failCount = 0
+						cleared++
+					}
+				}
+				c.endpointMu.Unlock()
+				if cleared > 0 {
+					log.Printf("[carrier] local network recovered, cleared offline backoffs for %d endpoint(s)", cleared)
+					c.wake.Broadcast()
+				}
+			}
+		}
+	}
+}
+
+// runEndpointRecoveryProbeOnce dials the user-configured IP via TCP to test
+// if the local network can route to the internet. Uses a fast timeout.
+func (c *Client) runEndpointRecoveryProbeOnce(ctx context.Context) bool {
+	dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var d net.Dialer
+	conn, err := d.DialContext(dialCtx, "tcp", c.recoveryProbeAddr)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// markEndpointLocalNetworkFailure marks the endpoint as offline due to local
+// network failure and applies a shortened blacklist TTL.
+func (c *Client) markEndpointLocalNetworkFailure(endpointIdx int) {
+	c.endpointMu.Lock()
+	if endpointIdx < 0 || endpointIdx >= len(c.endpoints) {
+		c.endpointMu.Unlock()
+		return
+	}
+	ep := &c.endpoints[endpointIdx]
+	wasHealthy := ep.failCount == 0
+
+	ep.localNetworkOffline = true
+	ep.failCount++
+	ep.statsFail++
+
+	// Force exactly the local network TTL
+	ep.blacklistedTill = time.Now().Add(localNetworkOfflineBlacklistTTL)
+	url := ep.url
+	c.endpointMu.Unlock()
+
+	if wasHealthy {
+		log.Printf("[carrier] endpoint %s blacklisted for %s (Local Network Offline)", shortScriptKey(url), localNetworkOfflineBlacklistTTL)
+	}
 }

@@ -20,6 +20,7 @@ type Server struct {
 	DebugTiming                 bool
 	UpstreamProxy               string // optional socks5://host:port; when set, all outbound dials go through this proxy
 	CompressionEntropyThreshold int
+	InitialResponseBytesPreEncode int
 }
 
 type serverFile struct {
@@ -39,6 +40,9 @@ type serverFile struct {
 
 	// Compression
 	CompressionEntropyThreshold int `json:"compression_entropy_threshold"`
+
+	// TTFB Optimization cap
+	InitialResponseBytesPreEncode int `json:"initial_response_bytes_pre_encode"`
 
 	// Legacy keys kept as fallback for existing deployments.
 	ListenAddr string `json:"listen_addr"`
@@ -114,12 +118,18 @@ func LoadServer(path string) (*Server, error) {
 		compressionEntropyThreshold = 224
 	}
 
+	initialResponseBytesPreEncode := f.InitialResponseBytesPreEncode
+	if initialResponseBytesPreEncode <= 0 {
+		initialResponseBytesPreEncode = 512 * 1024
+	}
+
 	c := Server{
 		ListenAddr:                  net.JoinHostPort(listenHost, strconv.Itoa(listenPort)),
 		AESKeyHex:                   key,
 		DebugTiming:                 f.DebugTiming,
 		UpstreamProxy:               upstreamProxy,
 		CompressionEntropyThreshold: compressionEntropyThreshold,
+		InitialResponseBytesPreEncode: initialResponseBytesPreEncode,
 	}
 	return &c, nil
 }
