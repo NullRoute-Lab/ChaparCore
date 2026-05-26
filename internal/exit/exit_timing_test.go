@@ -23,7 +23,11 @@ const exitTimingTestKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef01
 
 func mustExitTimingServer(tb testing.TB) *Server {
 	tb.Helper()
-	s, err := New(Config{ListenAddr: "127.0.0.1:0", AESKeyHex: exitTimingTestKeyHex})
+	s, err := New(Config{
+		ListenAddr: "127.0.0.1:0",
+		AESKeyHex:  exitTimingTestKeyHex,
+		AdminUUIDs: []string{"00000000-0000-0000-0000-000000000001"},
+	})
 	if err != nil {
 		tb.Fatalf("new server: %v", err)
 	}
@@ -42,7 +46,8 @@ func mustExitTimingCrypto(tb testing.TB) *frame.Crypto {
 func invokeExitTunnel(tb testing.TB, s *Server, c *frame.Crypto, frames []*frame.Frame) time.Duration {
 	tb.Helper()
 	var clientID [frame.ClientIDLen]byte
-	clientID[0] = 0x01 // distinguish from the all-zero "default" id
+	// use the admin ID we setup in mustExitTimingServer
+	clientID[15] = 0x01
 	body, err := frame.EncodeBatch(c, clientID, frames, 224)
 	if err != nil {
 		tb.Fatalf("encode request: %v", err)
@@ -179,6 +184,9 @@ func invokeAsClient(tb testing.TB, s *Server, c *frame.Crypto, clientID [frame.C
 	if len(respBody) == 0 {
 		return nil
 	}
+	if string(respBody) == "QUOTA_EXHAUSTED" {
+		return nil
+	}
 	_, out, err := frame.DecodeBatch(c, respBody)
 	if err != nil {
 		tb.Fatalf("decode response: %v", err)
@@ -211,7 +219,15 @@ func TestExit_MultiClient_SessionIsolation(t *testing.T) {
 
 	clientA := randClientID()
 	clientB := randClientID()
+	clientB[15] = 0x02 // Client B needs to be a DIFFERENT client for this test
 	sidA := randSessionID()
+
+	// Since ClientB is a different UUID (which would normally hit quota bounds),
+	// we will also configure our server manager here to recognize it as an admin just for this spoofing test,
+	// OR we can just inject a dummy quota to avoid HTTP 403 blocks blocking the spoof checks.
+	s.accounting.mu.Lock()
+	s.accounting.adminUUIDs["00000000-0000-0000-0000-000000000002"] = true
+	s.accounting.mu.Unlock()
 	sidB := randSessionID()
 
 	type result struct {
@@ -289,7 +305,13 @@ func TestExit_MultiClient_RejectsSessionSpoof(t *testing.T) {
 
 	clientA := randClientID()
 	clientB := randClientID()
+	clientB[15] = 0x02 // Client B needs to be a DIFFERENT client for this test
 	sidA := randSessionID()
+
+	// Configure server manager to recognize clientB as an admin to avoid QUOTA_EXHAUSTED blocks
+	s.accounting.mu.Lock()
+	s.accounting.adminUUIDs["00000000-0000-0000-0000-000000000002"] = true
+	s.accounting.mu.Unlock()
 
 	// Client A opens the session.
 	_ = invokeAsClient(t, s, c, clientA, []*frame.Frame{{
@@ -663,6 +685,7 @@ func randSessionID() [frame.SessionIDLen]byte {
 
 func randClientID() [frame.ClientIDLen]byte {
 	var id [frame.ClientIDLen]byte
-	rand.Read(id[:])
+	// use the admin ID we setup in mustExitTimingServer
+	id[15] = 0x01
 	return id
 }

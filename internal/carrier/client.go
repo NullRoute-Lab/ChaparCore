@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -79,6 +80,8 @@ const (
 type Config struct {
 	ScriptURLs    []string // one or more full https://script.google.com/macros/s/.../exec URLs
 	ClientVersion string   // build version string for diagnostics
+
+	ClientUUID string // user identity for quota and session tracking
 
 	// ScriptAccounts is an optional parallel slice to ScriptURLs labeling each
 	// deployment with the Google account it lives under. When set, the periodic
@@ -340,10 +343,25 @@ func New(cfg Config) (*Client, error) {
 	bucketCount := len(accountSeen)
 
 	var clientID [frame.ClientIDLen]byte
-	if _, err := rand.Read(clientID[:]); err != nil {
-		// crypto/rand failure is unrecoverable; fail fast rather than emitting
-		// an all-zero ID that would collide with every other unupgraded client.
-		return nil, fmt.Errorf("crypto/rand: %w", err)
+	if cfg.ClientUUID != "" {
+		cleanUUID := strings.ReplaceAll(cfg.ClientUUID, "-", "")
+		if len(cleanUUID) != 32 {
+			return nil, fmt.Errorf("invalid client_uuid length: expected 32 hex chars (ignoring hyphens), got %d", len(cleanUUID))
+		}
+		decoded, err := hex.DecodeString(cleanUUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid client_uuid format: must be hex: %w", err)
+		}
+		if len(decoded) != frame.ClientIDLen {
+			return nil, fmt.Errorf("invalid client_uuid decoded length: expected %d bytes, got %d", frame.ClientIDLen, len(decoded))
+		}
+		copy(clientID[:], decoded)
+	} else {
+		if _, err := rand.Read(clientID[:]); err != nil {
+			// crypto/rand failure is unrecoverable; fail fast rather than emitting
+			// an all-zero ID that would collide with every other unupgraded client.
+			return nil, fmt.Errorf("crypto/rand: %w", err)
+		}
 	}
 
 	idleSlotsPerBucket := cfg.IdleSlotsPerBucket

@@ -63,6 +63,9 @@ type Client struct {
 	// Compression
 	CompressionEntropyThreshold int
 
+	// ClientUUID is the unique UUID string identifying this client for quotas.
+	ClientUUID string
+
 	// Coalesce Jitter (Timing Disruption)
 	JitterMinMs int
 	JitterMaxMs int
@@ -79,6 +82,9 @@ type Client struct {
 
 // clientFile is the user-friendly client config format.
 type clientFile struct {
+	// ClientUUID for commercial user identity.
+	ClientUUID string `json:"client_uuid"`
+
 	// Local SOCKS listener.
 	SocksHost string `json:"socks_host"`
 	SocksPort int    `json:"socks_port"`
@@ -529,6 +535,7 @@ func LoadClient(path string) (*Client, error) {
 		AutoTuneMinSleepMs:          autoTuneMinSleepMs,
 		AutoTuneMaxSleepMs:          autoTuneMaxSleepMs,
 		CompressionEntropyThreshold: compressionEntropyThreshold,
+		ClientUUID:                  strings.TrimSpace(f.ClientUUID),
 		JitterMinMs:                 f.JitterMinMs,
 		JitterMaxMs:                 f.JitterMaxMs,
 		MaxActiveSessions:           maxActiveSessions,
