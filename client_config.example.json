@@ -24,7 +24,7 @@
   "_comment_compression_entropy_threshold": "Threshold value (0-255, default 224). Intelligently skips Zstd compression over pre-encrypted data blocks to conserve client device battery and server CPU cycles.",
   "compression_entropy_threshold": 224,
   "coalesce_step_ms": 20,
-  "workers_per_endpoint": 4,
+  "workers_per_endpoint": 3,
   "poll_idle_sleep_ms": 5,
   "endpoint_blacklist_base_ms": 3000,
   "endpoint_blacklist_max_ms": 3600000,
