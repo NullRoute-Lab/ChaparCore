@@ -37,11 +37,16 @@ func main() {
 	}
 
 	srv, err := exit.New(exit.Config{
-		ListenAddr:    cfg.ListenAddr,
-		AESKeyHex:     cfg.AESKeyHex,
-		DebugTiming:   cfg.DebugTiming,
-		UpstreamProxy: cfg.UpstreamProxy,
-		Version:       branding.Version,
+		ListenAddr:                    cfg.ListenAddr,
+		AESKeyHex:                     cfg.AESKeyHex,
+		DebugTiming:                   cfg.DebugTiming,
+		UpstreamProxy:                 cfg.UpstreamProxy,
+		Version:                       branding.Version,
+		CompressionEntropyThreshold:   cfg.CompressionEntropyThreshold,
+		InitialResponseBytesPreEncode: cfg.InitialResponseBytesPreEncode,
+		AdminUUIDs:                    cfg.AdminUUIDs,
+		MaxSessionsPerUUID:            cfg.MaxSessionsPerUUID,
+		AdminAPIAddr:                  cfg.AdminAPIAddr,
 	})
 	if err != nil {
 		log.Fatalf("exit: %v", err)

@@ -159,6 +159,7 @@ func main() {
 		AESKeyHex:          cfg.AESKeyHex,
 		DebugTiming:        cfg.DebugTiming,
 		ClientVersion:      branding.Version,
+		ClientUUID:         cfg.ClientUUID,
 		CoalesceStep:       time.Duration(cfg.CoalesceStepMs) * time.Millisecond,
 		CoalesceMax:        time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
 		IdleSlotsPerBucket: cfg.IdleSlotsPerBucket,
