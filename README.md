@@ -10,6 +10,8 @@ A SOCKS5 VPN that tunnels **raw TCP** through a Google Apps Script web app to yo
 
 > ⚠️ **You need a small VPS for the exit server.** Unlike pure-Apps-Script proxies, this project tunnels raw TCP — anything SOCKS5 can carry — so a real `net.Dial` has to happen somewhere. A small $4/month VPS is plenty. In exchange you can tunnel SSH, IMAP, custom protocols, anything — not just HTTP.
 
+*Check out the [Roadmap (TODO.md)](TODO.md) for future plans and upcoming features.*
+
 ## 🛡️ Advanced Aegis Architecture (Anti-DPI & Anti-Ban)
 
 - **JA3/JA4 TLS Camouflage (`uTLS`):** Chrome browser fingerprinting over explicit HTTP/2.
@@ -17,7 +19,16 @@ A SOCKS5 VPN that tunnels **raw TCP** through a Google Apps Script web app to yo
 - **Synergistic Coalesce (Anti-Flow Analysis):** Traffic batching combined with Cryptographic Jitter and Entropy Padding (randomizing packet sizes prior to Zstd compression).
 - **Hardware-Aware Concurrency & Active Probing:** CPU auto-scaling (`max_global_workers`) and passive 5-minute health checks for exhausted quotas.
 
+## 💎 Commercial AAA Features (Accounting & Quotas)
+
+- **ClientUUID Identity Binding:** Secure client tracking using unique UUIDv4 identities for robust session attribution.
+- **Admin Bypass (`admin_uuids`):** Dedicated bypass lists to allow unrestricted access for administrators, bypassing general quota limits.
+- **Active TCP Session Ceilings:** Dynamic enforcement of concurrent active sessions per user to prevent abuse and stabilize server performance.
+- **Local Port 9090 Admin API:** A fully integrated local accounting API for programmatic management of users, sessions, and bandwidth limits.
+
 ## 🚀 Roadmap / Future Ideas
+
+*See [TODO.md](TODO.md) for an extended list of our future plans and upcoming features.*
 
 - **Forward Error Correction (FEC):** Implementing an FEC sub-protocol to combat extreme "Random Packet Drop" policies. By generating parity packets (e.g., 1 recovery packet for every 3 data packets), the server can reconstruct dropped packets on the fly without costly retransmissions.
 - **AI-Driven Traffic Shaping (RL Agent):** Integrating a lightweight, quantized Reinforcement Learning (RL) model on the client side to dynamically adapt packet fragmentation, timing, and entropy padding based on real-time DPI throttling feedback. This will include an encrypted in-band signaling protocol (instruction mode) so the server's decoder can synchronously adapt to the client's ML-driven mutations.
@@ -142,6 +153,17 @@ Copy the 64-character string it prints. You'll use the **same value** in both th
 
 ### Step 4: Configure
 
+**Generate a UUIDv4 for Client Identity (ClientUUID):**
+
+You will also need a unique UUIDv4 for each client to enable the new AAA accounting features. You can easily generate one in your terminal:
+
+```bash
+uuidgen
+# Or using Python:
+python -c "import uuid; print(uuid.uuid4())"
+```
+Copy the generated UUID and keep it handy for your configuration file.
+
 Copy the example configs:
 
 ```bash
@@ -177,6 +199,14 @@ Open both files and paste your key into the `tunnel_key` field. Leave `script_ke
 ### Step 5: Set up the Google Apps Script
 
 This is the free Google-side piece that hides your traffic.
+
+**Advanced: Polymorphic Script Generator**
+To bypass heuristic DPI fingerprinting, you can use the built-in polymorphic bash script to generate multiple randomized Apps Scripts at once. For example, to generate 5 randomized scripts, run:
+
+```bash
+bash scripts/generate_polymorphic_gs.sh 5
+```
+*This generates 5 randomized versions in `apps_script/out/` that you can deploy.*
 
 1. Go to [Google Apps Script](https://script.google.com/) and sign in.
 2. Click **New project**.
@@ -270,7 +300,7 @@ sudo docker compose up -d
 
 When a new version is released, simply run:
 ```bash
-cd /opt/chapar-server && sudo docker compose pull && sudo docker compose up -d
+cd /opt/chapar-server && sudo docker compose pull && sudo docker compose up -d --force-recreate
 ```
 
 Verify from your own computer:
