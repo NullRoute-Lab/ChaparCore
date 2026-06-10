@@ -645,10 +645,6 @@ bash bench/bench.sh --update <ref>   # e.g. --update v1.3.0 or --update HEAD
 
 ---
 
-## Special Thanks
-
-Special thanks to [@abolix](https://github.com/abolix) for making this project possible.
-
 ## License
 
 MIT
